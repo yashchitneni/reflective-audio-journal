@@ -1,4 +1,3 @@
-
 import React, { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -9,7 +8,7 @@ import {
   ImageIcon, 
   SendIcon, 
   PauseIcon, 
-  StopIcon,
+  SquareIcon,
   LoaderIcon,
   CheckIcon
 } from 'lucide-react';
@@ -180,7 +179,7 @@ const JournalEditor = () => {
                     }`}
                   >
                     {isRecording ? (
-                      <StopIcon className="w-12 h-12" />
+                      <SquareIcon className="w-12 h-12" />
                     ) : (
                       <MicIcon className="w-12 h-12" />
                     )}

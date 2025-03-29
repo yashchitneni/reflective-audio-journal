@@ -71,6 +71,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         provider: 'google',
         options: {
           redirectTo: `${window.location.origin}/dashboard`,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          }
         },
       });
       if (error) throw error;
@@ -93,6 +97,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           data: {
             full_name: name,
           },
+          emailRedirectTo: `${window.location.origin}/dashboard`,
         },
       });
       if (error) throw error;

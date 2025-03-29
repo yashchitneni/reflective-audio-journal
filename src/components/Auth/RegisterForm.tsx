@@ -8,6 +8,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Separator } from '@/components/ui/separator';
 import { FcGoogle } from 'react-icons/fc';
+import { toast } from '@/hooks/use-toast';
 
 const RegisterForm = () => {
   const [name, setName] = useState('');
@@ -15,6 +16,7 @@ const RegisterForm = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const { signUp, signInWithGoogle } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -38,10 +40,19 @@ const RegisterForm = () => {
   };
 
   const handleGoogleSignIn = async () => {
+    setIsGoogleLoading(true);
     try {
       await signInWithGoogle();
-    } catch (err) {
-      // Error is handled in the context
+      // No need to navigate here as the OAuth redirect will handle that
+    } catch (err: any) {
+      toast({
+        title: "Google login failed",
+        description: err.message || "Could not sign in with Google. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      // This may not be reached immediately due to the redirect
+      setIsGoogleLoading(false);
     }
   };
 
@@ -132,9 +143,10 @@ const RegisterForm = () => {
           variant="outline" 
           className="w-full flex items-center justify-center gap-2"
           onClick={handleGoogleSignIn}
+          disabled={isGoogleLoading}
         >
           <FcGoogle className="w-5 h-5" />
-          <span>Sign up with Google</span>
+          <span>{isGoogleLoading ? 'Connecting...' : 'Sign up with Google'}</span>
         </Button>
         
         <div className="text-center mt-4">

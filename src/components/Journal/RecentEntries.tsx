@@ -22,7 +22,7 @@ const mockEntries = [
     id: '2',
     date: new Date(2023, 9, 19), // October 19, 2023
     type: 'voice',
-    preview: 'I'm feeling a bit overwhelmed with the upcoming deadline, but I'm confident that...'
+    preview: 'I\'m feeling a bit overwhelmed with the upcoming deadline, but I\'m confident that...'
   },
   {
     id: '3',

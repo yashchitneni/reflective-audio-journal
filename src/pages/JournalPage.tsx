@@ -44,7 +44,7 @@ const mockEntries = [
     date: new Date(2023, 9, 19), // October 19, 2023
     type: 'voice',
     title: 'Feeling Overwhelmed',
-    preview: 'I'm feeling a bit overwhelmed with the upcoming deadline, but I'm confident that I'll be able to manage my time effectively...'
+    preview: 'I\'m feeling a bit overwhelmed with the upcoming deadline, but I\'m confident that I\'ll be able to manage my time effectively...'
   },
   {
     id: '3',
@@ -58,7 +58,7 @@ const mockEntries = [
     date: new Date(2023, 9, 17), // October 17, 2023
     type: 'text',
     title: 'Meeting Reflections',
-    preview: 'Had an interesting meeting with the team today. We discussed some new ideas for the project and I'm excited to see how they'll develop...'
+    preview: 'Had an interesting meeting with the team today. We discussed some new ideas for the project and I\'m excited to see how they\'ll develop...'
   },
   {
     id: '5',

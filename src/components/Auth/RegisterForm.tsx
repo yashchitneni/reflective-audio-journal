@@ -5,6 +5,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { MailIcon, LockIcon, UserIcon, AlertCircleIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
+import { Separator } from '@/components/ui/separator';
+import { FcGoogle } from 'react-icons/fc';
 
 const RegisterForm = () => {
   const [name, setName] = useState('');
@@ -12,23 +15,33 @@ const RegisterForm = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const { signUp, signInWithGoogle } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setIsLoading(true);
     
-    // TODO: Implement actual registration with Supabase
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters long');
+      setIsLoading(false);
+      return;
+    }
+    
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // For demo purposes, just navigate to onboarding
-      window.location.href = '/onboarding';
-    } catch (err) {
-      setError('Could not create account. Please try again.');
+      await signUp(email, password, name);
+    } catch (err: any) {
+      setError(err.message || 'Could not create your account. Please try again.');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    try {
+      await signInWithGoogle();
+    } catch (err) {
+      // Error is handled in the context
     }
   };
 
@@ -103,6 +116,25 @@ const RegisterForm = () => {
           disabled={isLoading} 
         >
           {isLoading ? 'Creating Account...' : 'Create Account'}
+        </Button>
+        
+        <div className="relative my-6">
+          <div className="absolute inset-0 flex items-center">
+            <Separator />
+          </div>
+          <div className="relative flex justify-center text-xs uppercase">
+            <span className="bg-white px-2 text-reflect-muted">Or continue with</span>
+          </div>
+        </div>
+        
+        <Button 
+          type="button" 
+          variant="outline" 
+          className="w-full flex items-center justify-center gap-2"
+          onClick={handleGoogleSignIn}
+        >
+          <FcGoogle className="w-5 h-5" />
+          <span>Sign up with Google</span>
         </Button>
         
         <div className="text-center mt-4">

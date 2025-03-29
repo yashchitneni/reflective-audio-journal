@@ -5,29 +5,36 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { MailIcon, LockIcon, AlertCircleIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
+import { Separator } from '@/components/ui/separator';
+import { FcGoogle } from 'react-icons/fc';
 
 const LoginForm = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const { signIn, signInWithGoogle } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setIsLoading(true);
     
-    // TODO: Implement actual authentication with Supabase
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // For demo purposes, just navigate to dashboard
-      window.location.href = '/dashboard';
-    } catch (err) {
-      setError('Invalid email or password');
+      await signIn(email, password);
+    } catch (err: any) {
+      setError(err.message || 'Invalid email or password');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    try {
+      await signInWithGoogle();
+    } catch (err) {
+      // Error is handled in the context
     }
   };
 
@@ -88,6 +95,25 @@ const LoginForm = () => {
           disabled={isLoading}
         >
           {isLoading ? 'Signing In...' : 'Sign In'}
+        </Button>
+        
+        <div className="relative my-6">
+          <div className="absolute inset-0 flex items-center">
+            <Separator />
+          </div>
+          <div className="relative flex justify-center text-xs uppercase">
+            <span className="bg-white px-2 text-reflect-muted">Or continue with</span>
+          </div>
+        </div>
+        
+        <Button 
+          type="button" 
+          variant="outline" 
+          className="w-full flex items-center justify-center gap-2"
+          onClick={handleGoogleSignIn}
+        >
+          <FcGoogle className="w-5 h-5" />
+          <span>Sign in with Google</span>
         </Button>
         
         <div className="text-center mt-4">

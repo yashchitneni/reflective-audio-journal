@@ -92,11 +92,47 @@ const ProfilePage = () => {
   };
 
   const connectCalendar = async () => {
+    console.log('Connect Calendar button clicked');
     setIsUpdating(true);
     try {
       // This is a mock implementation
       // In a real app, this would call an OAuth endpoint
+      console.log('Starting Google Calendar OAuth flow');
       
+      // Fetch mock calendar events to populate the calendar
+      const mockEvents = [
+        {
+          user_id: formState.id,
+          event_title: 'Team Meeting',
+          start_time: new Date(Date.now() + 3600000).toISOString(), // 1 hour from now
+          end_time: new Date(Date.now() + 7200000).toISOString(), // 2 hours from now
+          location: 'Conference Room A',
+          description: 'Weekly team sync-up',
+          calendar_id: 'primary'
+        },
+        {
+          user_id: formState.id,
+          event_title: 'Lunch with Client',
+          start_time: new Date(Date.now() + 86400000).toISOString(), // Tomorrow
+          end_time: new Date(Date.now() + 90000000).toISOString(), // Tomorrow + 1 hour
+          location: 'Downtown Café',
+          description: 'Project discussion over lunch',
+          calendar_id: 'primary'
+        },
+        {
+          user_id: formState.id,
+          event_title: 'Product Review',
+          start_time: new Date(Date.now() + 172800000).toISOString(), // 2 days from now
+          end_time: new Date(Date.now() + 180000000).toISOString(), // 2 days + 2 hours
+          location: 'Main Office',
+          description: 'Quarterly product review',
+          calendar_id: 'primary'
+        }
+      ];
+      
+      console.log('Creating mock calendar events:', mockEvents);
+      
+      // First save the mock token
       const mockToken = {
         access_token: "mock-google-calendar-access-token",
         refresh_token: "mock-google-calendar-refresh-token",
@@ -112,6 +148,20 @@ const ProfilePage = () => {
         .eq('id', formState.id);
       
       if (error) throw error;
+      console.log('Calendar token saved successfully');
+      
+      // Then insert the mock events
+      for (const event of mockEvents) {
+        const { error: eventError } = await supabase
+          .from('calendar_events')
+          .insert(event);
+          
+        if (eventError) {
+          console.error('Error creating mock event:', eventError);
+        }
+      }
+      
+      console.log('Mock calendar events created successfully');
       
       setFormState(prev => ({
         ...prev,
@@ -135,8 +185,25 @@ const ProfilePage = () => {
   };
 
   const disconnectCalendar = async () => {
+    console.log('Disconnect Calendar button clicked');
     setIsUpdating(true);
     try {
+      console.log('Removing calendar integration');
+      
+      // First delete all calendar events for this user
+      const { error: deleteError } = await supabase
+        .from('calendar_events')
+        .delete()
+        .eq('user_id', formState.id);
+        
+      if (deleteError) {
+        console.error('Error deleting calendar events:', deleteError);
+        throw deleteError;
+      }
+      
+      console.log('Calendar events deleted successfully');
+      
+      // Then remove the token
       const { error } = await supabase
         .from('users')
         .update({
@@ -146,6 +213,7 @@ const ProfilePage = () => {
         .eq('id', formState.id);
       
       if (error) throw error;
+      console.log('Calendar token removed successfully');
       
       setFormState(prev => ({
         ...prev,

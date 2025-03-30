@@ -9,7 +9,10 @@ import { format, isToday, parseISO } from 'date-fns';
 import { useCalendarEvents } from '@/hooks/use-database';
 
 const CalendarView = () => {
+  console.log('Rendering CalendarView component');
   const { events, loading, error } = useCalendarEvents();
+  
+  console.log('Calendar events:', { loading, error, eventsCount: events?.length });
 
   return (
     <Card>
@@ -17,7 +20,12 @@ const CalendarView = () => {
         <div className="flex justify-between items-center">
           <CardTitle className="font-heading text-lg font-bold">Upcoming Events</CardTitle>
           <Link to="/calendar">
-            <Button variant="ghost" size="sm" className="text-reflect-primary">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="text-reflect-primary"
+              onClick={() => console.log('View Calendar button clicked')}
+            >
               <span>View Calendar</span>
               <ArrowRightIcon className="w-4 h-4 ml-1" />
             </Button>
@@ -40,7 +48,10 @@ const CalendarView = () => {
           <div className="py-8 text-center">
             <p className="text-reflect-muted">No calendar events found</p>
             <Link to="/profile">
-              <Button className="mt-4 reflect-button-outline">
+              <Button 
+                className="mt-4 reflect-button-outline"
+                onClick={() => console.log('Connect Calendar link clicked from CalendarView')}
+              >
                 <CalendarIcon className="w-4 h-4 mr-2" />
                 Connect Calendar
               </Button>

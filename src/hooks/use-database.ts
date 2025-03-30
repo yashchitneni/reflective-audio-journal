@@ -135,20 +135,37 @@ export function useCalendarEvents() {
   useEffect(() => {
     async function fetchEvents() {
       if (!user?.id) {
+        console.log('useCalendarEvents: No user ID found, aborting fetch');
         setLoading(false);
         return;
       }
 
       try {
+        console.log('useCalendarEvents: Fetching calendar events for user:', user.id);
         setLoading(true);
         // First get the user's profile to get their internal ID
         const { data: userData, error: userError } = await supabase
           .from('users')
-          .select('id')
+          .select('id, calendar_token')
           .eq('auth_id', user.id)
           .single();
 
-        if (userError) throw userError;
+        if (userError) {
+          console.error('useCalendarEvents: Error fetching user profile:', userError);
+          throw userError;
+        }
+        
+        console.log('useCalendarEvents: User profile found:', {
+          id: userData.id,
+          hasCalendarToken: !!userData.calendar_token
+        });
+        
+        if (!userData.calendar_token) {
+          console.log('useCalendarEvents: No calendar token found, returning empty events');
+          setEvents([]);
+          setLoading(false);
+          return;
+        }
         
         // Then get the calendar events
         const { data, error } = await supabase
@@ -157,7 +174,12 @@ export function useCalendarEvents() {
           .eq('user_id', userData.id)
           .order('start_time', { ascending: true });
 
-        if (error) throw error;
+        if (error) {
+          console.error('useCalendarEvents: Error fetching calendar events:', error);
+          throw error;
+        }
+        
+        console.log(`useCalendarEvents: Successfully fetched ${data?.length || 0} calendar events`);
         setEvents(data as CalendarEvent[]);
       } catch (e) {
         console.error('Error fetching calendar events:', e);

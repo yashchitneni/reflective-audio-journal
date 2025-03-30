@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { format, isToday, parseISO, isEqual, isSameDay } from 'date-fns';
+import { format, isToday, parseISO, isSameDay } from 'date-fns';
 import { Link, useNavigate } from 'react-router-dom';
 import MainLayout from '@/components/Layout/MainLayout';
 import { Card, CardContent } from '@/components/ui/card';
@@ -15,17 +15,22 @@ import {
   ImageIcon,
   BookIcon,
   CalendarIcon,
-  Loader2Icon
+  Loader2Icon,
+  RefreshCwIcon
 } from 'lucide-react';
 import { useJournalEntries, useCalendarEvents } from '@/hooks/use-database';
 import { JournalEntry, CalendarEvent } from '@/types/models';
 import { DayContent } from 'react-day-picker';
+import { useGoogleCalendar } from '@/hooks/use-google-calendar';
+import { useToast } from '@/hooks/use-toast';
 
 const CalendarPage = () => {
   const navigate = useNavigate();
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [month, setMonth] = useState<Date>(new Date());
   const [isLoading, setIsLoading] = useState(false);
+  const { syncCalendarEvents, isSyncing } = useGoogleCalendar();
+  const { toast } = useToast();
   
   // Fetch all journal entries
   const { entries: allEntries, loading: entriesLoading, error: entriesError } = useJournalEntries(100);
@@ -105,15 +110,41 @@ const CalendarPage = () => {
     setMonth(date);
   };
 
+  const handleSyncCalendar = async () => {
+    try {
+      await syncCalendarEvents();
+    } catch (error) {
+      console.error('Error syncing calendar:', error);
+      toast({
+        title: 'Sync failed',
+        description: 'Failed to sync calendar events. Please try again.',
+        variant: 'destructive'
+      });
+    }
+  };
+
   const loading = entriesLoading || eventsLoading;
 
   return (
     <MainLayout>
-      <div className="mb-6">
-        <h1 className="font-heading text-3xl font-bold">Calendar</h1>
-        <p className="text-reflect-muted">
-          View your journal entries and upcoming events
-        </p>
+      <div className="mb-6 flex justify-between items-center">
+        <div>
+          <h1 className="font-heading text-3xl font-bold">Calendar</h1>
+          <p className="text-reflect-muted">
+            View your journal entries and upcoming events
+          </p>
+        </div>
+        
+        <Button
+          variant="outline"
+          size="sm"
+          className="text-reflect-secondary border-reflect-secondary/30 hover:bg-reflect-secondary/10"
+          onClick={handleSyncCalendar}
+          disabled={isSyncing}
+        >
+          <RefreshCwIcon className={`w-4 h-4 mr-1 ${isSyncing ? 'animate-spin' : ''}`} />
+          {isSyncing ? 'Syncing...' : 'Sync Calendar'}
+        </Button>
       </div>
       
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -170,7 +201,7 @@ const CalendarPage = () => {
                     </h4>
                     <div className="space-y-3">
                       {selectedDateEvents.map(event => (
-                        <div key={event.id} className="p-3 bg-gray-50 rounded-md">
+                        <div key={event.id} className="p-3 bg-blue-50 border border-blue-100 rounded-md">
                           <div className="flex justify-between">
                             <h5 className="font-medium">{event.event_title}</h5>
                             <span className="text-sm text-reflect-muted">
@@ -178,7 +209,9 @@ const CalendarPage = () => {
                               {format(parseISO(event.end_time), 'h:mm a')}
                             </span>
                           </div>
-                          <p className="text-sm text-reflect-muted mt-1">{event.event_description}</p>
+                          {event.event_description && (
+                            <p className="text-sm text-reflect-muted mt-1">{event.event_description}</p>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -194,7 +227,7 @@ const CalendarPage = () => {
                     <div className="space-y-3">
                       {selectedDateEntries.map(entry => (
                         <Link to={`/journal/${entry.id}`} key={entry.id}>
-                          <div className="p-3 bg-gray-50 rounded-md hover:bg-gray-100 transition-colors">
+                          <div className="p-3 bg-purple-50 border border-purple-100 rounded-md hover:bg-purple-100 transition-colors">
                             <div className="flex justify-between items-start mb-1">
                               <div className="flex items-center gap-2">
                                 <span className="font-medium">

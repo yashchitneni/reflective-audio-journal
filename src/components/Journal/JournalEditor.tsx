@@ -1,4 +1,6 @@
-import React, { useState, useRef } from 'react';
+
+import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -18,6 +20,8 @@ import {
   CardFooter
 } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 
 const JournalEditor = () => {
   const [activeTab, setActiveTab] = useState('text');
@@ -28,10 +32,13 @@ const JournalEditor = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [imageCaption, setImageCaption] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
-  
-  let recordingInterval = useRef<NodeJS.Timeout | null>(null);
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const recordingInterval = useRef<NodeJS.Timeout | null>(null);
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setEntryText(e.target.value);
@@ -100,16 +107,37 @@ const JournalEditor = () => {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const saveEntry = () => {
-    // Determine which content to save based on active tab
-    let content = '';
-    if (activeTab === 'text') {
-      content = entryText;
-    } else if (activeTab === 'voice') {
-      content = audioTranscription;
+  const saveEntry = async () => {
+    if (!user) {
+      toast({
+        title: "Authentication Required",
+        description: "Please log in to save journal entries.",
+        variant: "destructive",
+      });
+      navigate('/login');
+      return;
     }
     
-    if (!content && !selectedImage) {
+    // Determine which content to save based on active tab
+    let textContent = null;
+    let voiceTranscript = null;
+    let photoUrls = null;
+    let voiceAudioUrl = null;
+    
+    if (activeTab === 'text') {
+      textContent = entryText;
+    } else if (activeTab === 'voice') {
+      voiceTranscript = audioTranscription;
+      // In a real app, we would also save the voice file
+      // voiceAudioUrl = "url/to/audio/file.mp3";
+    } else if (activeTab === 'photo') {
+      // In a real app, we would upload the image to storage
+      // and store the URL here
+      photoUrls = ["simulated_photo_url.jpg"];
+      textContent = imageCaption;
+    }
+    
+    if (!textContent && !voiceTranscript && !photoUrls) {
       toast({
         title: "Empty Entry",
         description: "Please add some text, recording, or image to your journal entry.",
@@ -118,16 +146,57 @@ const JournalEditor = () => {
       return;
     }
     
-    toast({
-      title: "Entry Saved",
-      description: "Your journal entry has been saved successfully.",
-    });
+    setIsSaving(true);
     
-    // TODO: Implement actual saving to backend
-    console.log("Saving entry:", { content, hasImage: !!selectedImage });
-    
-    // Redirect to dashboard or entry view page
-    // window.location.href = '/dashboard';
+    try {
+      // First get the user ID from the users table
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('id')
+        .eq('auth_id', user.id)
+        .single();
+        
+      if (userError) {
+        throw new Error(userError.message);
+      }
+      
+      if (!userData) {
+        throw new Error('User profile not found');
+      }
+      
+      // Now save the journal entry
+      const { data, error } = await supabase
+        .from('journal_entries')
+        .insert({
+          user_id: userData.id,
+          entry_date: new Date().toISOString(),
+          text_content: textContent,
+          voice_transcript: voiceTranscript,
+          photo_urls: photoUrls,
+          voice_audio_url: voiceAudioUrl,
+        })
+        .select();
+        
+      if (error) {
+        throw new Error(error.message);
+      }
+      
+      toast({
+        title: "Entry Saved",
+        description: "Your journal entry has been saved successfully.",
+      });
+      
+      // Redirect to dashboard
+      navigate('/dashboard');
+    } catch (error: any) {
+      toast({
+        title: "Error Saving Entry",
+        description: error.message || "Failed to save your entry. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -219,6 +288,7 @@ const JournalEditor = () => {
                       onClick={() => {
                         setSelectedImage(null);
                         setImagePreview(null);
+                        setImageCaption('');
                       }}
                       variant="destructive" 
                       size="sm"
@@ -230,6 +300,8 @@ const JournalEditor = () => {
                   <Textarea
                     placeholder="Add a caption or notes about this image..."
                     className="resize-none reflect-input w-full"
+                    value={imageCaption}
+                    onChange={(e) => setImageCaption(e.target.value)}
                   />
                 </div>
               ) : (
@@ -247,12 +319,25 @@ const JournalEditor = () => {
         </CardContent>
         
         <CardFooter className="flex justify-end gap-2">
-          <Button variant="outline" onClick={() => window.history.back()}>
+          <Button variant="outline" onClick={() => navigate(-1)}>
             Cancel
           </Button>
-          <Button className="reflect-button" onClick={saveEntry}>
-            <SendIcon className="w-4 h-4 mr-2" />
-            Save Entry
+          <Button 
+            className="reflect-button" 
+            onClick={saveEntry}
+            disabled={isSaving}
+          >
+            {isSaving ? (
+              <>
+                <LoaderIcon className="w-4 h-4 mr-2 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <SendIcon className="w-4 h-4 mr-2" />
+                Save Entry
+              </>
+            )}
           </Button>
         </CardFooter>
       </Tabs>

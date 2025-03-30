@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Card, 
   CardContent,
@@ -8,19 +8,88 @@ import {
   CardTitle
 } from '@/components/ui/card';
 import { CalendarIcon, CircleIcon } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 
-// Mock data for calendar events and entries
-const mockData = {
-  events: [
-    { id: 1, date: '2023-10-24', title: 'Team Meeting', time: '10:00 AM' },
-    { id: 2, date: '2023-10-26', title: 'Doctor Appointment', time: '3:30 PM' },
-    { id: 3, date: '2023-10-30', title: 'Birthday Party', time: '7:00 PM' }
-  ],
-  entries: ['2023-10-20', '2023-10-19', '2023-10-18', '2023-10-15', '2023-10-10']
-};
+interface CalendarEvent {
+  id: string;
+  event_title: string;
+  start_time: string;
+  end_time: string;
+}
+
+interface JournalDate {
+  date: string;
+}
 
 const CalendarView = () => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [journalDates, setJournalDates] = useState<JournalDate[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if (!user) return;
+    
+    const fetchCalendarData = async () => {
+      setIsLoading(true);
+      try {
+        // First get the user ID from the users table
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('id')
+          .eq('auth_id', user.id)
+          .single();
+          
+        if (userError) {
+          console.error('Error fetching user:', userError);
+          setIsLoading(false);
+          return;
+        }
+        
+        if (!userData) {
+          console.log('No user found');
+          setIsLoading(false);
+          return;
+        }
+        
+        // Fetch calendar events
+        const { data: eventData, error: eventError } = await supabase
+          .from('calendar_events')
+          .select('id, event_title, start_time, end_time')
+          .eq('user_id', userData.id)
+          .order('start_time', { ascending: true });
+          
+        if (eventError) {
+          console.error('Error fetching events:', eventError);
+        } else if (eventData) {
+          setEvents(eventData);
+        }
+        
+        // Fetch journal entry dates
+        const { data: journalData, error: journalError } = await supabase
+          .from('journal_entries')
+          .select('entry_date')
+          .eq('user_id', userData.id);
+          
+        if (journalError) {
+          console.error('Error fetching journal dates:', journalError);
+        } else if (journalData) {
+          setJournalDates(journalData.map(item => ({ 
+            date: new Date(item.entry_date).toISOString().split('T')[0]
+          })));
+        }
+        
+      } catch (error) {
+        console.error('Error in fetchCalendarData:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchCalendarData();
+  }, [user, currentMonth]);
   
   // Generate days for the current month
   const getDaysInMonth = (date: Date) => {
@@ -46,8 +115,8 @@ const CalendarView = () => {
       daysArray.push({
         day: i,
         dateString,
-        hasEntry: mockData.entries.includes(dateString),
-        hasEvent: mockData.events.some(event => event.date === dateString),
+        hasEntry: journalDates.some(entry => entry.date === dateString),
+        hasEvent: events.some(event => new Date(event.start_time).toISOString().split('T')[0] === dateString),
         isCurrentMonth: true
       });
     }
@@ -84,79 +153,96 @@ const CalendarView = () => {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="flex justify-between items-center mb-4">
-          <button 
-            className="text-reflect-muted hover:text-reflect-primary"
-            onClick={prevMonth}
-          >
-            &#8592; Prev
-          </button>
-          <h3 className="font-heading font-semibold">{monthYearString}</h3>
-          <button 
-            className="text-reflect-muted hover:text-reflect-primary"
-            onClick={nextMonth}
-          >
-            Next &#8594;
-          </button>
-        </div>
-        
-        <div className="grid grid-cols-7 gap-1 mb-2">
-          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-            <div key={day} className="text-center text-xs font-medium text-reflect-muted py-2">
-              {day}
+        {isLoading ? (
+          <div className="py-6 text-center">
+            <p className="text-reflect-muted">Loading calendar...</p>
+          </div>
+        ) : (
+          <>
+            <div className="flex justify-between items-center mb-4">
+              <button 
+                className="text-reflect-muted hover:text-reflect-primary"
+                onClick={prevMonth}
+              >
+                &#8592; Prev
+              </button>
+              <h3 className="font-heading font-semibold">{monthYearString}</h3>
+              <button 
+                className="text-reflect-muted hover:text-reflect-primary"
+                onClick={nextMonth}
+              >
+                Next &#8594;
+              </button>
             </div>
-          ))}
-        </div>
-        
-        <div className="grid grid-cols-7 gap-1">
-          {days.map((day, index) => (
-            <div 
-              key={index}
-              className={`
-                aspect-square rounded-md flex flex-col items-center justify-center relative
-                ${day.isCurrentMonth ? 'hover:bg-gray-100' : 'opacity-30'} 
-                cursor-pointer transition-colors
-              `}
-            >
-              {day.day && (
-                <>
-                  <span className={`text-sm ${day.hasEntry || day.hasEvent ? 'font-medium' : ''}`}>
-                    {day.day}
-                  </span>
-                  
-                  <div className="flex gap-1 mt-1">
-                    {day.hasEntry && (
-                      <CircleIcon className="w-1.5 h-1.5 text-reflect-primary" />
-                    )}
-                    {day.hasEvent && (
-                      <CircleIcon className="w-1.5 h-1.5 text-reflect-secondary" />
-                    )}
-                  </div>
-                </>
-              )}
+            
+            <div className="grid grid-cols-7 gap-1 mb-2">
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                <div key={day} className="text-center text-xs font-medium text-reflect-muted py-2">
+                  {day}
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-        
-        <div className="mt-4 pt-4 border-t">
-          <h4 className="font-medium mb-2">Upcoming Events</h4>
-          <div className="space-y-2">
-            {mockData.events.map(event => (
-              <div key={event.id} className="flex gap-2 items-start">
-                <div className="w-2 h-2 rounded-full bg-reflect-secondary mt-1.5"></div>
-                <div>
-                  <p className="font-medium">{event.title}</p>
-                  <p className="text-sm text-reflect-muted">
-                    {new Date(event.date).toLocaleDateString('en-US', { 
-                      month: 'short', 
-                      day: 'numeric' 
-                    })} at {event.time}
-                  </p>
+            
+            <div className="grid grid-cols-7 gap-1">
+              {days.map((day, index) => (
+                <div 
+                  key={index}
+                  className={`
+                    aspect-square rounded-md flex flex-col items-center justify-center relative
+                    ${day.isCurrentMonth ? 'hover:bg-gray-100' : 'opacity-30'} 
+                    cursor-pointer transition-colors
+                  `}
+                >
+                  {day.day && (
+                    <>
+                      <span className={`text-sm ${day.hasEntry || day.hasEvent ? 'font-medium' : ''}`}>
+                        {day.day}
+                      </span>
+                      
+                      <div className="flex gap-1 mt-1">
+                        {day.hasEntry && (
+                          <CircleIcon className="w-1.5 h-1.5 text-reflect-primary" />
+                        )}
+                        {day.hasEvent && (
+                          <CircleIcon className="w-1.5 h-1.5 text-reflect-secondary" />
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+            
+            {events.length > 0 ? (
+              <div className="mt-4 pt-4 border-t">
+                <h4 className="font-medium mb-2">Upcoming Events</h4>
+                <div className="space-y-2">
+                  {events.slice(0, 3).map(event => (
+                    <div key={event.id} className="flex gap-2 items-start">
+                      <div className="w-2 h-2 rounded-full bg-reflect-secondary mt-1.5"></div>
+                      <div>
+                        <p className="font-medium">{event.event_title}</p>
+                        <p className="text-sm text-reflect-muted">
+                          {new Date(event.start_time).toLocaleDateString('en-US', { 
+                            month: 'short', 
+                            day: 'numeric' 
+                          })} at {new Date(event.start_time).toLocaleTimeString('en-US', {
+                            hour: 'numeric',
+                            minute: '2-digit'
+                          })}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
-            ))}
-          </div>
-        </div>
+            ) : (
+              <div className="mt-4 pt-4 border-t text-center">
+                <p className="text-reflect-muted">No upcoming events</p>
+              </div>
+            )}
+          </>
+        )}
       </CardContent>
     </Card>
   );

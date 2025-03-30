@@ -9,7 +9,212 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      audio_files: {
+        Row: {
+          audio_type: string | null
+          created_at: string
+          generated_audio_url: string | null
+          generated_script: string | null
+          id: string
+          journal_entry_id: string | null
+          user_id: string
+        }
+        Insert: {
+          audio_type?: string | null
+          created_at?: string
+          generated_audio_url?: string | null
+          generated_script?: string | null
+          id?: string
+          journal_entry_id?: string | null
+          user_id: string
+        }
+        Update: {
+          audio_type?: string | null
+          created_at?: string
+          generated_audio_url?: string | null
+          generated_script?: string | null
+          id?: string
+          journal_entry_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audio_files_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "journal_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audio_files_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      calendar_events: {
+        Row: {
+          created_at: string
+          end_time: string
+          event_description: string | null
+          event_title: string
+          external_event_id: string | null
+          id: string
+          start_time: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          end_time: string
+          event_description?: string | null
+          event_title: string
+          external_event_id?: string | null
+          id?: string
+          start_time: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          end_time?: string
+          event_description?: string | null
+          event_title?: string
+          external_event_id?: string | null
+          id?: string
+          start_time?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calendar_events_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      journal_entries: {
+        Row: {
+          created_at: string
+          entry_date: string | null
+          generated_audio_id: string | null
+          id: string
+          photo_urls: Json | null
+          text_content: string | null
+          updated_at: string
+          user_id: string
+          voice_audio_url: string | null
+          voice_transcript: string | null
+        }
+        Insert: {
+          created_at?: string
+          entry_date?: string | null
+          generated_audio_id?: string | null
+          id?: string
+          photo_urls?: Json | null
+          text_content?: string | null
+          updated_at?: string
+          user_id: string
+          voice_audio_url?: string | null
+          voice_transcript?: string | null
+        }
+        Update: {
+          created_at?: string
+          entry_date?: string | null
+          generated_audio_id?: string | null
+          id?: string
+          photo_urls?: Json | null
+          text_content?: string | null
+          updated_at?: string
+          user_id?: string
+          voice_audio_url?: string | null
+          voice_transcript?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_generated_audio"
+            columns: ["generated_audio_id"]
+            isOneToOne: false
+            referencedRelation: "audio_files"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "journal_entries_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      prompts: {
+        Row: {
+          created_at: string
+          id: string
+          prompt_text: string
+          prompt_type: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          prompt_text: string
+          prompt_type?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          prompt_text?: string
+          prompt_type?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      users: {
+        Row: {
+          auth_id: string
+          calendar_token: Json | null
+          created_at: string
+          display_name: string | null
+          email: string | null
+          id: string
+          notification_preferences: string | null
+          subscription_status: string | null
+          timezone: string | null
+          updated_at: string
+        }
+        Insert: {
+          auth_id: string
+          calendar_token?: Json | null
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          id?: string
+          notification_preferences?: string | null
+          subscription_status?: string | null
+          timezone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          auth_id?: string
+          calendar_token?: Json | null
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          id?: string
+          notification_preferences?: string | null
+          subscription_status?: string | null
+          timezone?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

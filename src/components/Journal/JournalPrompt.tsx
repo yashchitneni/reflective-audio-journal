@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   Card, 
   CardContent,
@@ -10,39 +10,66 @@ import {
 import { Button } from '@/components/ui/button';
 import { SparklesIcon, ThumbsUpIcon, RefreshCwIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
 
-interface JournalPromptProps {
-  initialPrompt?: string;
+interface Prompt {
+  id: string;
+  prompt_text: string;
 }
 
-const prompts = [
-  "What are three things you're grateful for today?",
-  "What's something that challenged you today and how did you respond?",
-  "What's one thing you'd like to accomplish tomorrow?",
-  "Describe a moment that made you smile today.",
-  "What's something you learned about yourself recently?",
-  "If today was a color, what would it be and why?",
-  "What's one thing you can do today to take care of yourself?",
-  "What's a small win you experienced in the last 24 hours?",
-  "Who is someone that made a positive impact on your day?",
-  "What's something you're looking forward to in the near future?"
-];
+const JournalPrompt = () => {
+  const [prompts, setPrompts] = useState<Prompt[]>([]);
+  const [currentPrompt, setCurrentPrompt] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(false);
+  
+  useEffect(() => {
+    fetchPrompts();
+  }, []);
 
-const JournalPrompt: React.FC<JournalPromptProps> = ({ initialPrompt }) => {
-  const [currentPrompt, setCurrentPrompt] = React.useState(initialPrompt || prompts[0]);
-  const [isLoading, setIsLoading] = React.useState(false);
+  const fetchPrompts = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('prompts')
+        .select('id, prompt_text');
+
+      if (error) {
+        console.error('Error fetching prompts:', error);
+        return;
+      }
+
+      if (data && data.length > 0) {
+        setPrompts(data);
+        // Set a random prompt to start
+        const randomIndex = Math.floor(Math.random() * data.length);
+        setCurrentPrompt(data[randomIndex].prompt_text);
+      }
+    } catch (error) {
+      console.error('Error in fetchPrompts:', error);
+    }
+  };
   
   const getRandomPrompt = () => {
+    if (prompts.length === 0) return;
+    
     setIsLoading(true);
     
-    // Simulate API call for new prompt
     setTimeout(() => {
       const randomIndex = Math.floor(Math.random() * prompts.length);
-      const newPrompt = prompts[randomIndex];
+      const newPrompt = prompts[randomIndex].prompt_text;
       setCurrentPrompt(newPrompt);
       setIsLoading(false);
     }, 500);
   };
+
+  if (!currentPrompt) {
+    return (
+      <Card className="reflect-card">
+        <CardContent className="p-6 flex items-center justify-center">
+          <p className="text-reflect-muted">Loading prompt...</p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="reflect-card">

@@ -1,5 +1,5 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import MainLayout from '@/components/Layout/MainLayout';
 import { 
   Card, 
@@ -30,50 +30,169 @@ import {
   SelectValue 
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 
 const ProfilePage = () => {
-  const [name, setName] = useState('Sarah Johnson');
-  const [email, setEmail] = useState('sarah@example.com');
+  const { user, signOut } = useAuth();
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
   const [timezone, setTimezone] = useState('America/New_York');
   const [pushNotifications, setPushNotifications] = useState(true);
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [isConnected, setIsConnected] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
   const { toast } = useToast();
+  const navigate = useNavigate();
   
-  const handleSaveProfile = () => {
+  useEffect(() => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+
+    const fetchUserProfile = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('users')
+          .select('*')
+          .eq('auth_id', user.id)
+          .single();
+
+        if (error) {
+          console.error('Error fetching user profile:', error);
+          return;
+        }
+
+        if (data) {
+          setUserId(data.id);
+          setName(data.display_name || '');
+          setEmail(data.email || user.email || '');
+          setTimezone(data.timezone || 'America/New_York');
+          
+          // Parse notification preferences
+          const notifPrefs = data.notification_preferences || 'both';
+          setPushNotifications(notifPrefs.includes('push') || notifPrefs === 'both');
+          setEmailNotifications(notifPrefs.includes('email') || notifPrefs === 'both');
+          
+          // Check if calendar is connected
+          setIsConnected(!!data.calendar_token);
+        }
+      } catch (error) {
+        console.error('Error in fetchUserProfile:', error);
+      }
+    };
+
+    fetchUserProfile();
+  }, [user, navigate]);
+
+  const handleSaveProfile = async () => {
+    if (!userId) return;
+    
     setIsSaving(true);
     
-    // Simulate API call
-    setTimeout(() => {
-      setIsSaving(false);
+    // Determine notification preferences
+    let notificationPreferences = 'none';
+    if (pushNotifications && emailNotifications) notificationPreferences = 'both';
+    else if (pushNotifications) notificationPreferences = 'push';
+    else if (emailNotifications) notificationPreferences = 'email';
+    
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update({
+          display_name: name,
+          email: email,
+          timezone: timezone,
+          notification_preferences: notificationPreferences,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', userId);
+        
+      if (error) throw error;
+      
       toast({
         title: "Profile Updated",
         description: "Your profile has been updated successfully.",
       });
-    }, 1000);
+    } catch (error: any) {
+      toast({
+        title: "Update Failed",
+        description: error.message || "Could not update your profile. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
   };
   
-  const handleConnectCalendar = () => {
-    // Simulate Google OAuth flow
-    setIsConnected(true);
-    toast({
-      title: "Calendar Connected",
-      description: "Your Google Calendar has been connected successfully.",
-    });
+  const handleConnectCalendar = async () => {
+    // In a real implementation, this would connect to Google Calendar API
+    // For now, we'll just simulate connecting by saving a token in the database
+    if (!userId) return;
+    
+    try {
+      const mockToken = { 
+        access_token: "mock_access_token", 
+        refresh_token: "mock_refresh_token",
+        expiry_date: new Date(Date.now() + 3600000).toISOString()
+      };
+      
+      const { error } = await supabase
+        .from('users')
+        .update({
+          calendar_token: mockToken,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', userId);
+        
+      if (error) throw error;
+      
+      setIsConnected(true);
+      toast({
+        title: "Calendar Connected",
+        description: "Your Google Calendar has been connected successfully.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Connection Failed",
+        description: error.message || "Could not connect your calendar. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
   
-  const handleDisconnectCalendar = () => {
-    setIsConnected(false);
-    toast({
-      title: "Calendar Disconnected",
-      description: "Your Google Calendar has been disconnected.",
-    });
+  const handleDisconnectCalendar = async () => {
+    if (!userId) return;
+    
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update({
+          calendar_token: null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', userId);
+        
+      if (error) throw error;
+      
+      setIsConnected(false);
+      toast({
+        title: "Calendar Disconnected",
+        description: "Your Google Calendar has been disconnected.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Disconnection Failed",
+        description: error.message || "Could not disconnect your calendar. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
   
   const handleLogout = () => {
-    // TODO: Implement actual logout logic
-    window.location.href = '/login';
+    signOut();
   };
 
   return (
@@ -129,7 +248,11 @@ const ProfilePage = () => {
                     className="reflect-input"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    disabled={!!user?.email}
                   />
+                  {user?.email && (
+                    <p className="text-xs text-reflect-muted mt-1">Email is managed by your authentication provider</p>
+                  )}
                 </div>
                 
                 <div className="space-y-2">

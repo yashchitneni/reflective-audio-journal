@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { RefreshIcon, ArrowRightIcon } from 'lucide-react';
+import { RefreshCw, ArrowRight } from 'lucide-react';
 import { usePrompts } from '@/hooks/use-database';
 import { Prompt } from '@/types/models';
 
@@ -49,7 +49,7 @@ const JournalPrompt = () => {
           <div className="flex justify-between items-center mb-4">
             <h3 className="font-heading text-lg font-bold">Daily Prompt</h3>
             <Button variant="ghost" size="sm" onClick={getRandomPrompt}>
-              <RefreshIcon className="w-4 h-4 mr-1" />
+              <RefreshCw className="w-4 h-4 mr-1" />
               <span>New Prompt</span>
             </Button>
           </div>
@@ -59,7 +59,7 @@ const JournalPrompt = () => {
         <div className="mt-6">
           <Button className="reflect-button w-full group">
             <span>Start Writing</span>
-            <ArrowRightIcon className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
+            <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
           </Button>
         </div>
       </CardContent>

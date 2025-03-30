@@ -3,12 +3,13 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { ArrowRightIcon, CalendarIcon } from 'lucide-react';
 import { format, isToday, parseISO } from 'date-fns';
 import { useCalendarEvents } from '@/hooks/use-database';
 
 const CalendarView = () => {
-  const { events, loading } = useCalendarEvents();
+  const { events, loading, error } = useCalendarEvents();
 
   return (
     <Card>
@@ -25,13 +26,20 @@ const CalendarView = () => {
       </CardHeader>
       <CardContent>
         {loading ? (
+          <div className="space-y-3">
+            <Skeleton className="h-14 w-full" />
+            <Skeleton className="h-14 w-full" />
+            <Skeleton className="h-14 w-full" />
+          </div>
+        ) : error ? (
           <div className="py-8 text-center">
-            <p className="text-reflect-muted">Loading events...</p>
+            <p className="text-reflect-muted">Error loading calendar events.</p>
+            <p className="text-xs text-reflect-muted mt-1">{error.message}</p>
           </div>
         ) : events.length === 0 ? (
           <div className="py-8 text-center">
             <p className="text-reflect-muted">No calendar events found</p>
-            <Link to="/calendar">
+            <Link to="/profile">
               <Button className="mt-4 reflect-button-outline">
                 <CalendarIcon className="w-4 h-4 mr-2" />
                 Connect Calendar

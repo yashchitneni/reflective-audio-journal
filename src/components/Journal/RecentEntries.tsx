@@ -3,7 +3,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { MicIcon, ImageIcon, FileTextIcon, ArrowRightIcon, Loader2Icon } from 'lucide-react';
+import { MicIcon, ImageIcon, FileTextIcon, ArrowRightIcon } from 'lucide-react';
 import { format } from 'date-fns';
 import { useJournalEntries } from '@/hooks/use-database';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -26,7 +26,7 @@ const RecentEntries = () => {
       <div className="flex gap-1">
         {entry.text_content && <FileTextIcon className="w-3 h-3 text-gray-500" />}
         {entry.voice_transcript && <MicIcon className="w-3 h-3 text-gray-500" />}
-        {entry.photo_urls && (entry.photo_urls as string[]).length > 0 && <ImageIcon className="w-3 h-3 text-gray-500" />}
+        {entry.photo_urls && (entry.photo_urls as string[])?.length > 0 && <ImageIcon className="w-3 h-3 text-gray-500" />}
       </div>
     );
   };

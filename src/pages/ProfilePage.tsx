@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import MainLayout from '@/components/Layout/MainLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,15 +7,33 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { CalendarPlus, CalendarX, Check, LogOut, MailIcon, UserIcon } from 'lucide-react';
+import { 
+  CalendarCheck, 
+  CalendarPlus, 
+  CalendarX, 
+  Check, 
+  LogOut, 
+  MailIcon, 
+  RefreshCw, 
+  UserIcon 
+} from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserProfile } from '@/hooks/use-database';
+import { useGoogleCalendar } from '@/hooks/use-google-calendar';
+import { format, parseISO } from 'date-fns';
 
 const ProfilePage = () => {
   const { user, signOut } = useAuth();
   const { profile, loading } = useUserProfile();
+  const { 
+    connectCalendar: connectGoogleCalendar, 
+    disconnectCalendar: disconnectGoogleCalendar, 
+    syncCalendarEvents, 
+    isLoading: isCalendarLoading, 
+    isSyncing 
+  } = useGoogleCalendar();
   
   const [formState, setFormState] = useState({
     id: '',
@@ -24,10 +41,35 @@ const ProfilePage = () => {
     email: '',
     timezone: 'America/New_York',
     notificationPreferences: 'both',
-    hasCalendar: false
+    hasCalendar: false,
+    lastSyncTime: ''
   });
 
   const [isUpdating, setIsUpdating] = useState(false);
+  const [calendarConnectedParam, setCalendarConnectedParam] = useState(false);
+
+  useEffect(() => {
+    // Check for URL parameters that indicate calendar connection success
+    const urlParams = new URLSearchParams(window.location.search);
+    const calendarConnected = urlParams.get('calendarConnected');
+    
+    if (calendarConnected === 'true') {
+      setCalendarConnectedParam(true);
+      // Clear the URL parameter
+      window.history.replaceState({}, document.title, window.location.pathname);
+      
+      // Show success toast
+      toast({
+        title: "Calendar connected",
+        description: "Your Google Calendar has been connected successfully. Syncing events now."
+      });
+      
+      // Sync calendar events after a successful connection
+      setTimeout(() => {
+        syncCalendarEvents();
+      }, 1000);
+    }
+  }, []);
 
   useEffect(() => {
     if (profile) {
@@ -37,7 +79,8 @@ const ProfilePage = () => {
         email: profile.email || '',
         timezone: profile.timezone || 'America/New_York',
         notificationPreferences: profile.notification_preferences || 'both',
-        hasCalendar: !!profile.calendar_token
+        hasCalendar: !!profile.calendar_token,
+        lastSyncTime: profile.updated_at || ''
       });
     }
   }, [profile]);
@@ -91,13 +134,19 @@ const ProfilePage = () => {
     }
   };
 
+  // Custom connect calendar function that includes console logs
   const connectCalendar = async () => {
     console.log('Connect Calendar button clicked');
+    // If we have a real Google Calendar integration, use that
+    if (connectGoogleCalendar) {
+      await connectGoogleCalendar();
+      return;
+    }
+
+    // Fallback to mock implementation
     setIsUpdating(true);
     try {
-      // This is a mock implementation
-      // In a real app, this would call an OAuth endpoint
-      console.log('Starting Google Calendar OAuth flow');
+      console.log('Starting mock Google Calendar OAuth flow');
       
       // Fetch mock calendar events to populate the calendar
       const mockEvents = [
@@ -184,8 +233,16 @@ const ProfilePage = () => {
     }
   };
 
+  // Custom disconnect calendar function that includes console logs
   const disconnectCalendar = async () => {
     console.log('Disconnect Calendar button clicked');
+    // If we have a real Google Calendar integration, use that
+    if (disconnectGoogleCalendar) {
+      await disconnectGoogleCalendar();
+      return;
+    }
+
+    // Fallback to mock implementation
     setIsUpdating(true);
     try {
       console.log('Removing calendar integration');
@@ -250,6 +307,18 @@ const ProfilePage = () => {
         description: error.message || "There was an error signing you out.",
         variant: "destructive"
       });
+    }
+  };
+
+  const formatLastSyncTime = () => {
+    if (!formState.lastSyncTime) return 'Never';
+    
+    try {
+      const date = parseISO(formState.lastSyncTime);
+      return format(date, "MMMM d, yyyy 'at' h:mm a");
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return 'Unknown';
     }
   };
 
@@ -363,42 +432,96 @@ const ProfilePage = () => {
           
           <Card>
             <CardHeader>
-              <CardTitle>Calendar Integration</CardTitle>
+              <CardTitle>Google Calendar Integration</CardTitle>
               <CardDescription>
-                Connect your calendar to enable scheduling features
+                Connect your Google Calendar to view your events alongside journal entries
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <h4 className="text-base font-medium">Google Calendar</h4>
-                  <p className="text-sm text-reflect-muted">
-                    {formState.hasCalendar 
-                      ? 'Your calendar is connected and syncing' 
-                      : 'Connect your Google Calendar for event syncing'
-                    }
-                  </p>
+              <div className="space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <div className="space-y-1">
+                    <h4 className="text-base font-medium">Google Calendar</h4>
+                    <p className="text-sm text-reflect-muted">
+                      {formState.hasCalendar 
+                        ? 'Your calendar is connected and syncing' 
+                        : 'Connect your Google Calendar for event integration'
+                      }
+                    </p>
+                    
+                    {formState.hasCalendar && (
+                      <p className="text-xs text-reflect-muted mt-1">
+                        Last sync: {formatLastSyncTime()}
+                      </p>
+                    )}
+                  </div>
+                  
+                  <div className="flex flex-wrap gap-2">
+                    {formState.hasCalendar ? (
+                      <>
+                        <Button 
+                          variant="outline" 
+                          onClick={syncCalendarEvents}
+                          disabled={isSyncing || isCalendarLoading}
+                          className="text-reflect-primary border-reflect-primary/30 hover:bg-reflect-primary/10"
+                        >
+                          <RefreshCw className={`w-4 h-4 mr-2 ${isSyncing ? 'animate-spin' : ''}`} />
+                          {isSyncing ? 'Syncing...' : 'Sync Now'}
+                        </Button>
+                        
+                        <Button 
+                          variant="outline" 
+                          onClick={disconnectCalendar}
+                          disabled={isSyncing || isCalendarLoading}
+                        >
+                          <CalendarX className="w-4 h-4 mr-2" />
+                          Disconnect
+                        </Button>
+                      </>
+                    ) : (
+                      <Button 
+                        variant="outline" 
+                        onClick={connectCalendar}
+                        disabled={isCalendarLoading}
+                        className="text-reflect-primary border-reflect-primary/30 hover:bg-reflect-primary/10"
+                      >
+                        <CalendarPlus className="w-4 h-4 mr-2" />
+                        {isCalendarLoading ? 'Connecting...' : 'Connect Calendar'}
+                      </Button>
+                    )}
+                  </div>
                 </div>
                 
-                {formState.hasCalendar ? (
-                  <Button 
-                    variant="outline" 
-                    onClick={disconnectCalendar}
-                    disabled={isUpdating}
-                  >
-                    <CalendarX className="w-4 h-4 mr-2" />
-                    Disconnect
-                  </Button>
-                ) : (
-                  <Button 
-                    variant="outline" 
-                    onClick={connectCalendar}
-                    disabled={isUpdating}
-                    className="text-reflect-primary border-reflect-primary/30 hover:bg-reflect-primary/10"
-                  >
-                    <CalendarPlus className="w-4 h-4 mr-2" />
-                    Connect
-                  </Button>
+                {formState.hasCalendar && (
+                  <div className="rounded-md bg-green-50 p-4">
+                    <div className="flex">
+                      <div className="flex-shrink-0">
+                        <CalendarCheck className="h-5 w-5 text-green-400" aria-hidden="true" />
+                      </div>
+                      <div className="ml-3">
+                        <h3 className="text-sm font-medium text-green-800">Calendar Connected</h3>
+                        <div className="mt-2 text-sm text-green-700">
+                          <p>Your Google Calendar is connected. Calendar events will appear in your calendar view alongside journal entries.</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {!formState.hasCalendar && (
+                  <div className="rounded-md bg-blue-50 p-4">
+                    <div className="flex">
+                      <div className="flex-shrink-0">
+                        <CalendarPlus className="h-5 w-5 text-blue-400" aria-hidden="true" />
+                      </div>
+                      <div className="ml-3">
+                        <h3 className="text-sm font-medium text-blue-800">Connect Your Calendar</h3>
+                        <div className="mt-2 text-sm text-blue-700">
+                          <p>Connect your Google Calendar to see your events alongside your journal entries. This helps provide context to your reflections.</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 )}
               </div>
             </CardContent>

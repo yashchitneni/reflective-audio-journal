@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { useJournalEntries, useCalendarEvents } from '@/hooks/use-database';
 import { JournalEntry, CalendarEvent } from '@/types/models';
+import { DayContent, DayProps } from 'react-day-picker';
 
 const CalendarPage = () => {
   const navigate = useNavigate();
@@ -63,9 +64,10 @@ const CalendarPage = () => {
   }, [allEvents]);
 
   // Custom renderer for calendar day to show indicators
-  const renderDay = (day: Date) => {
-    const hasEntry = datesWithEntries.some(date => isSameDay(date, day));
-    const hasEvent = datesWithEvents.some(date => isSameDay(date, day));
+  const renderDay = (props: DayProps) => {
+    const { date, ...dayProps } = props;
+    const hasEntry = datesWithEntries.some(entryDate => isSameDay(entryDate, date));
+    const hasEvent = datesWithEvents.some(eventDate => isSameDay(eventDate, date));
     
     return (
       <div className="relative flex h-full w-full items-center justify-center p-0">
@@ -77,7 +79,7 @@ const CalendarPage = () => {
             <div className="h-1 w-1 rounded-full bg-reflect-secondary" />
           )}
         </div>
-        <span>{day.getDate()}</span>
+        <DayContent {...dayProps} />
       </div>
     );
   };

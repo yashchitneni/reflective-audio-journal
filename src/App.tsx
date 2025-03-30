@@ -15,6 +15,7 @@ import CalendarPage from "./pages/CalendarPage";
 import AudioLibraryPage from "./pages/AudioLibraryPage";
 import ProfilePage from "./pages/ProfilePage";
 import NotFound from "./pages/NotFound";
+import AuthCallbackPage from "./pages/AuthCallbackPage";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 const queryClient = new QueryClient();
@@ -37,6 +38,7 @@ const App = () => (
             <Route path="/calendar" element={<CalendarPage />} />
             <Route path="/audio" element={<AudioLibraryPage />} />
             <Route path="/profile" element={<ProfilePage />} />
+            <Route path="/auth/callback" element={<AuthCallbackPage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </TooltipProvider>

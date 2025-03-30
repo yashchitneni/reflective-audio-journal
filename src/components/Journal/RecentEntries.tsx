@@ -7,14 +7,17 @@ import {
   CardHeader,
   CardTitle
 } from '@/components/ui/card';
-import { BookIcon, FileTextIcon, MicIcon, ImageIcon, ArrowRightIcon } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
+import { FileTextIcon, MicIcon, ImageIcon, PlusCircleIcon } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
+import { format, parseISO } from 'date-fns';
 
-type EntryType = 'text' | 'voice' | 'photo';
+// Define types for journal entries
+export type EntryType = 'text' | 'voice' | 'photo' | 'mixed';
 
-interface JournalEntry {
+export interface JournalEntry {
   id: string;
   entry_date: string;
   text_content: string | null;
@@ -25,154 +28,175 @@ interface JournalEntry {
 }
 
 const RecentEntries = () => {
+  const { user } = useAuth();
   const [entries, setEntries] = useState<JournalEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const { user } = useAuth();
+  const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!user) return;
-    
-    const fetchEntries = async () => {
-      setIsLoading(true);
+    const fetchUserIdAndEntries = async () => {
+      if (!user) return;
+      
       try {
-        // First get the user ID from the users table
+        setIsLoading(true);
+        
+        // First, get the user's internal ID from the users table
         const { data: userData, error: userError } = await supabase
           .from('users')
           .select('id')
           .eq('auth_id', user.id)
           .single();
-          
+        
         if (userError) {
-          console.error('Error fetching user:', userError);
+          console.error('Error fetching user ID:', userError);
           setIsLoading(false);
           return;
         }
         
         if (!userData) {
-          console.log('No user found');
+          console.error('No user found with auth_id:', user.id);
           setIsLoading(false);
           return;
         }
         
-        // Fetch the journal entries
-        const { data, error } = await supabase
+        setUserId(userData.id);
+        
+        // Now fetch the journal entries using the user's internal ID
+        const { data: entriesData, error: entriesError } = await supabase
           .from('journal_entries')
           .select('*')
           .eq('user_id', userData.id)
           .order('entry_date', { ascending: false })
-          .limit(5);
-          
-        if (error) {
-          console.error('Error fetching entries:', error);
+          .limit(3);
+        
+        if (entriesError) {
+          console.error('Error fetching journal entries:', entriesError);
           setIsLoading(false);
           return;
         }
         
-        if (data && data.length > 0) {
-          // Process the entries
-          const processedEntries = data.map(entry => {
-            let type: EntryType = 'text';
-            let preview = '';
-            
-            if (entry.voice_transcript) {
-              type = 'voice';
-              preview = entry.voice_transcript;
-            } else if (entry.photo_urls) {
-              type = 'photo';
-              preview = 'Photo journal entry';
-            } else if (entry.text_content) {
-              type = 'text';
-              preview = entry.text_content;
-            }
-            
-            return {
-              id: entry.id,
-              entry_date: entry.entry_date,
-              text_content: entry.text_content,
-              voice_transcript: entry.voice_transcript,
-              photo_urls: entry.photo_urls,
-              type,
-              preview: preview || 'No content'
-            };
-          });
-          
-          setEntries(processedEntries);
+        if (!entriesData || entriesData.length === 0) {
+          // If there are no entries, set an empty array
+          setEntries([]);
+          setIsLoading(false);
+          return;
         }
+        
+        // Process the entries to match our JournalEntry interface
+        const processedEntries: JournalEntry[] = entriesData.map(entry => {
+          // Determine the entry type
+          let type: EntryType = 'text';
+          if (entry.voice_transcript && entry.text_content) {
+            type = 'mixed';
+          } else if (entry.voice_transcript) {
+            type = 'voice';
+          } else if (entry.photo_urls && 
+                    (Array.isArray(entry.photo_urls) ? 
+                      entry.photo_urls.length > 0 : 
+                      Object.keys(entry.photo_urls).length > 0)) {
+            type = 'photo';
+          }
+          
+          // Create a preview of the content
+          let preview = '';
+          if (entry.text_content) {
+            preview = entry.text_content.substring(0, 100) + (entry.text_content.length > 100 ? '...' : '');
+          } else if (entry.voice_transcript) {
+            preview = entry.voice_transcript.substring(0, 100) + (entry.voice_transcript.length > 100 ? '...' : '');
+          } else {
+            preview = 'View this entry...';
+          }
+          
+          return {
+            id: entry.id,
+            entry_date: entry.entry_date,
+            text_content: entry.text_content,
+            voice_transcript: entry.voice_transcript,
+            photo_urls: Array.isArray(entry.photo_urls) ? entry.photo_urls : null,
+            type,
+            preview
+          };
+        });
+        
+        setEntries(processedEntries);
       } catch (error) {
-        console.error('Error in fetchEntries:', error);
+        console.error('Error in fetchUserIdAndEntries:', error);
       } finally {
         setIsLoading(false);
       }
     };
     
-    fetchEntries();
+    fetchUserIdAndEntries();
   }, [user]);
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { 
-      weekday: 'long', 
-      month: 'short', 
-      day: 'numeric' 
-    });
+  
+  const getEntryTypeIcon = (type: EntryType) => {
+    switch (type) {
+      case 'text':
+        return <FileTextIcon className="w-4 h-4 text-blue-500" />;
+      case 'voice':
+        return <MicIcon className="w-4 h-4 text-green-500" />;
+      case 'photo':
+        return <ImageIcon className="w-4 h-4 text-purple-500" />;
+      case 'mixed':
+        return <FileTextIcon className="w-4 h-4 text-orange-500" />;
+      default:
+        return <FileTextIcon className="w-4 h-4 text-blue-500" />;
+    }
   };
 
   return (
     <Card className="reflect-card">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <BookIcon className="w-5 h-5 text-reflect-primary" />
-          Recent Journal Entries
-        </CardTitle>
-        <CardDescription>
-          Your latest reflections and thoughts
-        </CardDescription>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <div>
+          <CardTitle>Recent Journal Entries</CardTitle>
+          <CardDescription>Your latest reflections</CardDescription>
+        </div>
+        <Link to="/new-entry">
+          <Button className="reflect-button-secondary" size="sm">
+            <PlusCircleIcon className="w-4 h-4 mr-1" /> New Entry
+          </Button>
+        </Link>
       </CardHeader>
       <CardContent>
         {isLoading ? (
           <div className="py-8 text-center">
-            <p className="text-reflect-muted">Loading your entries...</p>
+            <p className="text-reflect-muted">Loading entries...</p>
           </div>
         ) : entries.length === 0 ? (
-          <div className="py-8 text-center">
-            <p className="text-reflect-muted">You don't have any journal entries yet.</p>
-            <Link to="/new-entry" className="mt-4 inline-block">
-              <Button className="reflect-button">Create Your First Entry</Button>
+          <div className="bg-reflect-accent/10 rounded-md p-6 text-center">
+            <h3 className="text-xl font-medium mb-2">No entries yet</h3>
+            <p className="text-reflect-muted mb-4">
+              Start capturing your thoughts, voice notes, or images
+            </p>
+            <Link to="/new-entry">
+              <Button className="reflect-button">
+                Create Your First Entry
+              </Button>
             </Link>
           </div>
         ) : (
           <div className="space-y-4">
-            {entries.map(entry => (
-              <Link to={`/journal/${entry.id}`} key={entry.id}>
-                <div className="flex items-start gap-3 p-3 rounded-md hover:bg-gray-50 transition-colors">
-                  <div className="mt-1">
-                    {entry.type === 'text' && (
-                      <FileTextIcon className="w-5 h-5 text-blue-500" />
-                    )}
-                    {entry.type === 'voice' && (
-                      <MicIcon className="w-5 h-5 text-red-500" />
-                    )}
-                    {entry.type === 'photo' && (
-                      <ImageIcon className="w-5 h-5 text-green-500" />
-                    )}
+            {entries.map((entry) => (
+              <Link key={entry.id} to={`/journal/${entry.id}`}>
+                <div className="border rounded-md p-4 hover:bg-reflect-accent/5 transition-colors cursor-pointer">
+                  <div className="flex items-center gap-2 mb-1">
+                    {getEntryTypeIcon(entry.type)}
+                    <span className="text-sm text-reflect-muted">
+                      {entry.entry_date ? format(parseISO(entry.entry_date), 'MMM d, yyyy • h:mm a') : 'Unknown date'}
+                    </span>
                   </div>
-                  <div className="flex-1">
-                    <p className="text-sm text-reflect-muted">
-                      {formatDate(entry.entry_date)}
-                    </p>
-                    <p className="line-clamp-2 text-reflect-text">{entry.preview}</p>
-                  </div>
-                  <ArrowRightIcon className="w-5 h-5 text-reflect-muted self-center" />
+                  <p className="line-clamp-2">{entry.preview}</p>
                 </div>
               </Link>
             ))}
+            
+            <Link to="/journal" className="block text-center mt-4">
+              <Button variant="link" className="text-reflect-primary">
+                View All Entries
+              </Button>
+            </Link>
           </div>
         )}
-        
-        <Link to="/journal" className="mt-4 text-reflect-primary flex items-center gap-1 text-sm font-medium hover:underline w-fit">
-          <span>View all entries</span>
-          <ArrowRightIcon className="w-4 h-4" />
-        </Link>
       </CardContent>
     </Card>
   );

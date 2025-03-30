@@ -24,37 +24,64 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const navigate = useNavigate();
 
   useEffect(() => {
+    console.log('Setting up auth state listener');
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+      async (event, currentSession) => {
         console.log('Auth state changed:', event);
-        setSession(session);
-        setUser(session?.user ?? null);
+        setSession(currentSession);
+        setUser(currentSession?.user ?? null);
         
-        // Defer additional actions
-        if (session?.user) {
+        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+          console.log('User signed in, redirecting to dashboard');
+          // We need to defer this to avoid React state update conflicts
           setTimeout(() => {
-            console.log('User is authenticated:', session.user);
+            navigate('/dashboard');
           }, 0);
+        } else if (event === 'SIGNED_OUT') {
+          console.log('User signed out, redirecting to login');
+          navigate('/login');
         }
       }
     );
 
     // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+    const checkSession = async () => {
+      try {
+        const { data: { session: existingSession } } = await supabase.auth.getSession();
+        setSession(existingSession);
+        setUser(existingSession?.user ?? null);
+        
+        if (existingSession?.user) {
+          console.log('Found existing session, user is already logged in');
+          // Check if we're on the login or registration page
+          const currentPath = window.location.pathname;
+          if (currentPath === '/login' || currentPath === '/register') {
+            console.log('Redirecting to dashboard from login/register page');
+            navigate('/dashboard');
+          }
+        }
+        
+        setLoading(false);
+      } catch (error) {
+        console.error('Error checking session:', error);
+        setLoading(false);
+      }
+    };
+    
+    checkSession();
 
-    return () => subscription.unsubscribe();
-  }, []);
+    return () => {
+      console.log('Cleaning up auth subscription');
+      subscription.unsubscribe();
+    };
+  }, [navigate]);
 
   const signIn = async (email: string, password: string) => {
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
-      navigate('/dashboard');
+      // The redirect will be handled by the onAuthStateChange event
     } catch (error: any) {
       toast({
         title: "Login failed",
@@ -67,6 +94,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const signInWithGoogle = async () => {
     try {
+      console.log('Attempting to sign in with Google');
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -78,7 +106,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         },
       });
       if (error) throw error;
+      // The redirect will be handled by the OAuth provider and then onAuthStateChange
     } catch (error: any) {
+      console.error('Google login error:', error);
       toast({
         title: "Google login failed",
         description: error.message || "Could not sign in with Google. Please try again.",

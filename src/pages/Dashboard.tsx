@@ -13,37 +13,63 @@ import { toast } from '@/hooks/use-toast';
 const Dashboard = () => {
   const { user } = useAuth();
   const [displayName, setDisplayName] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
 
   useEffect(() => {
     if (!user) {
+      console.log('No user found in Dashboard, redirecting to login');
       navigate('/login');
       return;
     }
 
     const fetchUserProfile = async () => {
+      console.log('Fetching user profile for:', user.id);
+      setIsLoading(true);
       try {
+        // First try to get user from the users table using auth_id
         const { data, error } = await supabase
           .from('users')
-          .select('display_name')
+          .select('id, display_name, email')
           .eq('auth_id', user.id)
           .single();
 
         if (error) {
           console.error('Error fetching user profile:', error);
+          // If we can't find the user in our database, fall back to auth metadata
+          const name = user.user_metadata?.full_name || user.email?.split('@')[0] || 'User';
+          setDisplayName(name);
           return;
         }
 
         if (data) {
-          setDisplayName(data.display_name || user.email?.split('@')[0] || 'User');
+          console.log('User profile found:', data);
+          setDisplayName(data.display_name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'User');
+        } else {
+          console.log('No user profile found, using fallback name');
+          setDisplayName(user.user_metadata?.full_name || user.email?.split('@')[0] || 'User');
         }
       } catch (error) {
         console.error('Error in fetchUserProfile:', error);
+        // Fall back to metadata
+        setDisplayName(user.user_metadata?.full_name || user.email?.split('@')[0] || 'User');
+      } finally {
+        setIsLoading(false);
       }
     };
 
     fetchUserProfile();
   }, [user, navigate]);
+
+  if (isLoading) {
+    return (
+      <MainLayout>
+        <div className="flex justify-center items-center h-64">
+          <p className="text-reflect-muted">Loading your dashboard...</p>
+        </div>
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout>

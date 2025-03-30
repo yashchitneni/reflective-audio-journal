@@ -10,6 +10,7 @@ import RegisterPage from "./pages/RegisterPage";
 import OnboardingPage from "./pages/OnboardingPage";
 import Dashboard from "./pages/Dashboard";
 import JournalPage from "./pages/JournalPage";
+import JournalEntryPage from "./pages/JournalEntryPage";
 import NewEntryPage from "./pages/NewEntryPage";
 import CalendarPage from "./pages/CalendarPage";
 import AudioLibraryPage from "./pages/AudioLibraryPage";
@@ -34,6 +35,7 @@ const App = () => (
             <Route path="/onboarding" element={<OnboardingPage />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/journal" element={<JournalPage />} />
+            <Route path="/journal/:entryId" element={<JournalEntryPage />} />
             <Route path="/new-entry" element={<NewEntryPage />} />
             <Route path="/calendar" element={<CalendarPage />} />
             <Route path="/audio" element={<AudioLibraryPage />} />

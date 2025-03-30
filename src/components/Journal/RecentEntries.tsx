@@ -8,7 +8,7 @@ import { format } from 'date-fns';
 import { useJournalEntries } from '@/hooks/use-database';
 
 const RecentEntries = () => {
-  const { entries, loading } = useJournalEntries(3);
+  const { entries, loading, error } = useJournalEntries(3);
 
   const getEntryPreview = (entry: any) => {
     if (entry.text_content) {
@@ -29,6 +29,21 @@ const RecentEntries = () => {
       </div>
     );
   };
+
+  if (error) {
+    return (
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="font-heading text-lg font-bold">Recent Entries</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="py-8 text-center">
+            <p className="text-reflect-muted">There was an error loading your entries. Please try again later.</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card>

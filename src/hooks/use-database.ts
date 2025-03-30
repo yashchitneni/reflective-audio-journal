@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -48,6 +47,7 @@ export function useJournalEntries(limit: number = 5) {
   const [entries, setEntries] = useState<JournalEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const [totalCount, setTotalCount] = useState(0);
 
   useEffect(() => {
     async function fetchEntries() {
@@ -67,6 +67,19 @@ export function useJournalEntries(limit: number = 5) {
 
         if (userError) throw userError;
         
+        if (!userData) {
+          throw new Error('User profile not found');
+        }
+        
+        // Get the total count of entries for this user
+        const { count, error: countError } = await supabase
+          .from('journal_entries')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', userData.id);
+          
+        if (countError) throw countError;
+        setTotalCount(count || 0);
+        
         // Then get the journal entries
         const { data, error } = await supabase
           .from('journal_entries')
@@ -80,6 +93,7 @@ export function useJournalEntries(limit: number = 5) {
       } catch (e) {
         console.error('Error fetching journal entries:', e);
         setError(e as Error);
+        setEntries([]);
       } finally {
         setLoading(false);
       }
@@ -88,7 +102,7 @@ export function useJournalEntries(limit: number = 5) {
     fetchEntries();
   }, [user, limit]);
 
-  return { entries, loading, error };
+  return { entries, totalCount, loading, error };
 }
 
 // Hook for fetching calendar events
@@ -167,4 +181,59 @@ export function usePrompts() {
   }, []);
 
   return { prompts, loading, error };
+}
+
+// New hook for fetching a single journal entry
+export function useJournalEntry(entryId: string | undefined) {
+  const { user } = useAuth();
+  const [entry, setEntry] = useState<JournalEntry | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  useEffect(() => {
+    async function fetchEntry() {
+      if (!user?.id || !entryId) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        
+        // First get the user's profile to get their internal ID
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('id')
+          .eq('auth_id', user.id)
+          .single();
+
+        if (userError) throw userError;
+        
+        if (!userData) {
+          throw new Error('User profile not found');
+        }
+
+        // Then get the specific journal entry
+        const { data, error } = await supabase
+          .from('journal_entries')
+          .select('*')
+          .eq('user_id', userData.id)
+          .eq('id', entryId)
+          .single();
+
+        if (error) throw error;
+        
+        setEntry(data as JournalEntry);
+      } catch (e) {
+        console.error('Error fetching journal entry:', e);
+        setError(e as Error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchEntry();
+  }, [user, entryId]);
+
+  return { entry, loading, error };
 }

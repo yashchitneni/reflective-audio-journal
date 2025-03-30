@@ -25,19 +25,24 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     console.log('Setting up auth state listener');
+    
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, currentSession) => {
+      (event, currentSession) => {
         console.log('Auth state changed:', event);
         setSession(currentSession);
         setUser(currentSession?.user ?? null);
         
-        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        if (event === 'SIGNED_IN') {
           console.log('User signed in, redirecting to dashboard');
-          // We need to defer this to avoid React state update conflicts
-          setTimeout(() => {
-            navigate('/dashboard');
-          }, 0);
+          // Prevent infinite loops by checking current path
+          const currentPath = window.location.pathname;
+          if (currentPath === '/login' || currentPath === '/register') {
+            // We need to defer this to avoid React state update conflicts
+            setTimeout(() => {
+              navigate('/dashboard');
+            }, 0);
+          }
         } else if (event === 'SIGNED_OUT') {
           console.log('User signed out, redirecting to login');
           navigate('/login');
@@ -99,10 +104,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         provider: 'google',
         options: {
           redirectTo: `${window.location.origin}/dashboard`,
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
-          }
         },
       });
       if (error) throw error;

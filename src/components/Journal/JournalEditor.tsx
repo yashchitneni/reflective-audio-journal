@@ -1,197 +1,120 @@
 
-import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Input } from '@/components/ui/input';
-import { 
-  MicIcon, 
-  ImageIcon, 
-  SendIcon, 
-  PauseIcon, 
-  SquareIcon,
-  LoaderIcon,
-  CheckIcon
-} from 'lucide-react';
-import { 
-  Card,
-  CardContent,
-  CardFooter
-} from '@/components/ui/card';
-import { useToast } from '@/hooks/use-toast';
+import { Camera, Mic, Send, Image, X, Save } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useUserProfile } from '@/hooks/use-database';
+import { toast } from '@/hooks/use-toast';
 
 const JournalEditor = () => {
-  const [activeTab, setActiveTab] = useState('text');
-  const [entryText, setEntryText] = useState('');
+  const [text, setText] = useState('');
+  const [voiceTranscript, setVoiceTranscript] = useState('');
   const [isRecording, setIsRecording] = useState(false);
-  const [recordingTime, setRecordingTime] = useState(0);
-  const [audioTranscription, setAudioTranscription] = useState('');
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [selectedImage, setSelectedImage] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [photos, setPhotos] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
-  const [imageCaption, setImageCaption] = useState('');
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const { toast } = useToast();
-  const { user } = useAuth();
   const navigate = useNavigate();
-  const recordingInterval = useRef<NodeJS.Timeout | null>(null);
+  const { user } = useAuth();
+  const { profile } = useUserProfile();
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setEntryText(e.target.value);
-  };
-
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setSelectedImage(file);
-      
-      // Create preview URL
-      const reader = new FileReader();
-      reader.onload = () => {
-        setImagePreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const triggerImageUpload = () => {
-    fileInputRef.current?.click();
+    setText(e.target.value);
   };
 
   const toggleRecording = () => {
+    setIsRecording(!isRecording);
     if (!isRecording) {
-      startRecording();
+      // Mock recording start
+      toast({
+        title: "Recording started",
+        description: "Your voice is being recorded...",
+      });
+      setTimeout(() => {
+        setIsRecording(false);
+        setVoiceTranscript("This is a simulated voice transcript. In a real application, this would be the result of speech-to-text conversion.");
+        toast({
+          title: "Recording completed",
+          description: "Your voice has been transcribed.",
+        });
+      }, 3000);
     } else {
-      stopRecording();
+      // Mock recording stop
+      toast({
+        title: "Recording stopped",
+        description: "Recording has been cancelled.",
+      });
     }
   };
 
-  const startRecording = () => {
-    setIsRecording(true);
-    setRecordingTime(0);
-    
-    // Start timer
-    recordingInterval.current = setInterval(() => {
-      setRecordingTime(prev => prev + 1);
-    }, 1000);
-    
-    // TODO: Implement actual recording with Web Audio API
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+
+    // Mock photo upload
+    Array.from(files).forEach(file => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setPhotos(prev => [...prev, e.target?.result as string]);
+      };
+      reader.readAsDataURL(file);
+    });
   };
 
-  const stopRecording = () => {
-    setIsRecording(false);
-    
-    // Clear timer
-    if (recordingInterval.current) {
-      clearInterval(recordingInterval.current);
-      recordingInterval.current = null;
-    }
-    
-    // Simulate transcription process
-    setIsProcessing(true);
-    setTimeout(() => {
-      setIsProcessing(false);
-      setAudioTranscription("This is a simulated transcription of the audio you just recorded. In a real implementation, this would be the text generated from your voice recording.");
-    }, 2000);
-    
-    // TODO: Implement actual stop recording and transcription
-  };
-
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  const removePhoto = (index: number) => {
+    setPhotos(photos.filter((_, i) => i !== index));
   };
 
   const saveEntry = async () => {
-    if (!user) {
+    if (!text && !voiceTranscript && photos.length === 0) {
       toast({
-        title: "Authentication Required",
-        description: "Please log in to save journal entries.",
-        variant: "destructive",
-      });
-      navigate('/login');
-      return;
-    }
-    
-    // Determine which content to save based on active tab
-    let textContent = null;
-    let voiceTranscript = null;
-    let photoUrls = null;
-    let voiceAudioUrl = null;
-    
-    if (activeTab === 'text') {
-      textContent = entryText;
-    } else if (activeTab === 'voice') {
-      voiceTranscript = audioTranscription;
-      // In a real app, we would also save the voice file
-      // voiceAudioUrl = "url/to/audio/file.mp3";
-    } else if (activeTab === 'photo') {
-      // In a real app, we would upload the image to storage
-      // and store the URL here
-      photoUrls = ["simulated_photo_url.jpg"];
-      textContent = imageCaption;
-    }
-    
-    if (!textContent && !voiceTranscript && !photoUrls) {
-      toast({
-        title: "Empty Entry",
-        description: "Please add some text, recording, or image to your journal entry.",
+        title: "Cannot save empty entry",
+        description: "Please add some text, voice recording, or photos before saving.",
         variant: "destructive",
       });
       return;
     }
-    
+
+    if (!user || !profile) {
+      toast({
+        title: "Not logged in",
+        description: "You must be logged in to save a journal entry.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsSaving(true);
-    
+
     try {
-      // First get the user ID from the users table
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('id')
-        .eq('auth_id', user.id)
-        .single();
-        
-      if (userError) {
-        throw new Error(userError.message);
-      }
-      
-      if (!userData) {
-        throw new Error('User profile not found');
-      }
-      
-      // Now save the journal entry
       const { data, error } = await supabase
         .from('journal_entries')
         .insert({
-          user_id: userData.id,
+          user_id: profile.id,
           entry_date: new Date().toISOString(),
-          text_content: textContent,
-          voice_transcript: voiceTranscript,
-          photo_urls: photoUrls,
-          voice_audio_url: voiceAudioUrl,
+          text_content: text || null,
+          voice_transcript: voiceTranscript || null,
+          photo_urls: photos.length > 0 ? photos : null,
+          voice_audio_url: null // In a real app, this would be the URL to the stored audio file
         })
-        .select();
-        
-      if (error) {
-        throw new Error(error.message);
-      }
-      
+        .select('id')
+        .single();
+
+      if (error) throw error;
+
       toast({
-        title: "Entry Saved",
+        title: "Entry saved",
         description: "Your journal entry has been saved successfully.",
       });
-      
-      // Redirect to dashboard
-      navigate('/dashboard');
+
+      navigate('/journal');
     } catch (error: any) {
+      console.error('Error saving journal entry:', error);
       toast({
-        title: "Error Saving Entry",
-        description: error.message || "Failed to save your entry. Please try again.",
+        title: "Failed to save entry",
+        description: error.message || "There was an error saving your journal entry.",
         variant: "destructive",
       });
     } finally {
@@ -200,148 +123,108 @@ const JournalEditor = () => {
   };
 
   return (
-    <Card className="w-full">
-      <Tabs defaultValue="text" value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid grid-cols-3 mb-4">
-          <TabsTrigger value="text">Text</TabsTrigger>
-          <TabsTrigger value="voice">Voice</TabsTrigger>
-          <TabsTrigger value="photo">Photo</TabsTrigger>
-        </TabsList>
-        
-        <CardContent>
-          <TabsContent value="text" className="mt-0">
-            <Textarea
-              placeholder="What's on your mind today?"
-              className="resize-none min-h-[200px] reflect-input"
-              value={entryText}
-              onChange={handleTextChange}
-            />
-          </TabsContent>
-          
-          <TabsContent value="voice" className="mt-0">
-            <div className="min-h-[200px] flex flex-col items-center justify-center">
-              {isProcessing ? (
-                <div className="flex flex-col items-center text-center">
-                  <LoaderIcon className="w-12 h-12 text-reflect-primary animate-spin mb-4" />
-                  <p className="text-reflect-muted">Transcribing your audio...</p>
-                </div>
-              ) : audioTranscription ? (
-                <div className="w-full">
-                  <div className="mb-4 flex items-center gap-2">
-                    <CheckIcon className="w-5 h-5 text-green-500" />
-                    <span className="text-green-600 font-medium">Audio transcribed successfully</span>
-                  </div>
-                  <Textarea
-                    className="resize-none min-h-[150px] reflect-input w-full"
-                    value={audioTranscription}
-                    onChange={e => setAudioTranscription(e.target.value)}
-                  />
-                </div>
-              ) : (
-                <div className="text-center">
-                  <button
-                    onClick={toggleRecording}
-                    className={`w-24 h-24 rounded-full flex items-center justify-center mb-4 ${
-                      isRecording 
-                        ? 'bg-red-500 text-white animate-pulse-gentle' 
-                        : 'bg-reflect-primary text-white'
-                    }`}
-                  >
-                    {isRecording ? (
-                      <SquareIcon className="w-12 h-12" />
-                    ) : (
-                      <MicIcon className="w-12 h-12" />
-                    )}
-                  </button>
-                  
-                  {isRecording ? (
-                    <div className="text-red-500 font-semibold text-xl">
-                      {formatTime(recordingTime)}
-                    </div>
-                  ) : (
-                    <p className="text-reflect-muted">Tap to start recording</p>
-                  )}
-                </div>
-              )}
-            </div>
-          </TabsContent>
-          
-          <TabsContent value="photo" className="mt-0">
-            <div className="min-h-[200px] flex flex-col items-center justify-center">
-              <input 
-                type="file" 
-                ref={fileInputRef} 
-                accept="image/*" 
-                className="hidden" 
-                onChange={handleImageUpload}
-              />
-              
-              {imagePreview ? (
-                <div className="w-full">
-                  <div className="relative w-full aspect-video mb-4">
-                    <img 
-                      src={imagePreview} 
-                      alt="Selected" 
-                      className="w-full h-full object-cover rounded-md"
-                    />
-                    <Button 
-                      onClick={() => {
-                        setSelectedImage(null);
-                        setImagePreview(null);
-                        setImageCaption('');
-                      }}
-                      variant="destructive" 
-                      size="sm"
-                      className="absolute top-2 right-2"
-                    >
-                      Remove
-                    </Button>
-                  </div>
-                  <Textarea
-                    placeholder="Add a caption or notes about this image..."
-                    className="resize-none reflect-input w-full"
-                    value={imageCaption}
-                    onChange={(e) => setImageCaption(e.target.value)}
-                  />
-                </div>
-              ) : (
-                <button
-                  onClick={triggerImageUpload}
-                  className="border-2 border-dashed border-gray-300 rounded-md p-8 w-full flex flex-col items-center text-reflect-muted hover:text-reflect-primary hover:border-reflect-primary transition-colors"
-                >
-                  <ImageIcon className="w-12 h-12 mb-2" />
-                  <p className="font-medium">Click to upload an image</p>
-                  <p className="text-sm">PNG, JPG or GIF</p>
-                </button>
-              )}
-            </div>
-          </TabsContent>
+    <div className="space-y-4">
+      <Card>
+        <CardContent className="p-6">
+          <Textarea
+            placeholder="What's on your mind today?"
+            value={text}
+            onChange={handleTextChange}
+            className="min-h-[200px] text-lg resize-none border-0 focus-visible:ring-0 p-0"
+          />
         </CardContent>
-        
-        <CardFooter className="flex justify-end gap-2">
-          <Button variant="outline" onClick={() => navigate(-1)}>
+      </Card>
+
+      {voiceTranscript && (
+        <Card className="border-reflect-primary border-opacity-50">
+          <CardContent className="p-4">
+            <div className="flex items-start">
+              <Mic className="w-5 h-5 text-reflect-primary mt-1 mr-2 shrink-0" />
+              <div>
+                <h3 className="text-sm font-medium mb-1">Voice Note Transcript</h3>
+                <p className="text-reflect-text">{voiceTranscript}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {photos.length > 0 && (
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
+          {photos.map((photo, index) => (
+            <div key={index} className="relative group">
+              <img
+                src={photo}
+                alt={`Uploaded image ${index + 1}`}
+                className="rounded-md w-full h-40 object-cover"
+              />
+              <button
+                className="absolute top-2 right-2 bg-black bg-opacity-50 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                onClick={() => removePhoto(index)}
+              >
+                <X className="w-4 h-4 text-white" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="flex justify-between">
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant={isRecording ? "destructive" : "outline"}
+            onClick={toggleRecording}
+          >
+            <Mic className={`mr-1 h-4 w-4 ${isRecording ? 'animate-pulse' : ''}`} />
+            {isRecording ? 'Stop Recording' : 'Record Voice'}
+          </Button>
+
+          <label>
+            <Button type="button" size="sm" variant="outline" className="cursor-pointer" asChild>
+              <div>
+                <Image className="mr-1 h-4 w-4" />
+                Add Photos
+              </div>
+            </Button>
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handlePhotoUpload}
+              className="hidden"
+            />
+          </label>
+        </div>
+
+        <div className="flex gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={() => navigate('/journal')}>
             Cancel
           </Button>
-          <Button 
-            className="reflect-button" 
+          <Button
+            type="button"
+            variant="default"
+            size="sm"
             onClick={saveEntry}
             disabled={isSaving}
+            className="reflect-button"
           >
             {isSaving ? (
               <>
-                <LoaderIcon className="w-4 h-4 mr-2 animate-spin" />
+                <Save className="mr-1 h-4 w-4 animate-spin" />
                 Saving...
               </>
             ) : (
               <>
-                <SendIcon className="w-4 h-4 mr-2" />
+                <Send className="mr-1 h-4 w-4" />
                 Save Entry
               </>
             )}
           </Button>
-        </CardFooter>
-      </Tabs>
-    </Card>
+        </div>
+      </div>
+    </div>
   );
 };
 

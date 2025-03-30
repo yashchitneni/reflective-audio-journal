@@ -15,15 +15,14 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     persistSession: true,
     autoRefreshToken: true,
     flowType: 'pkce',
-    detectSessionInUrl: true,
-    onAuthStateChange: (event, session) => {
-      console.log('Global Supabase Auth Event:', event);
-    }
+    detectSessionInUrl: true
   }
 });
 
 // Helper function to get the current user profile from the users table
-export const getUserProfile = async (userId: string) => {
+export const getUserProfile = async (userId: string | undefined) => {
+  if (!userId) return null;
+  
   const { data, error } = await supabase
     .from('users')
     .select('*')
@@ -32,7 +31,25 @@ export const getUserProfile = async (userId: string) => {
   
   if (error) {
     console.error('Error fetching user profile:', error);
-    throw error;
+    return null;
+  }
+  
+  return data;
+};
+
+// Create a type-safe helper function to get user by auth_id
+export const getUserByAuthId = async (authId: string | undefined) => {
+  if (!authId) return null;
+  
+  const { data, error } = await supabase
+    .from('users')
+    .select('*')
+    .eq('auth_id', authId)
+    .single();
+  
+  if (error) {
+    console.error('Error fetching user by auth_id:', error);
+    return null;
   }
   
   return data;

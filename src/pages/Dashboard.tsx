@@ -7,8 +7,9 @@ import RecentEntries from '@/components/Journal/RecentEntries';
 import CalendarView from '@/components/Calendar/CalendarView';
 import AudioLibrary from '@/components/Audio/AudioLibrary';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
+import { getUserByAuthId } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
+import { UserProfile } from '@/types/models';
 
 const Dashboard = () => {
   const { user } = useAuth();
@@ -27,24 +28,12 @@ const Dashboard = () => {
       console.log('Fetching user profile for:', user.id);
       setIsLoading(true);
       try {
-        // First try to get user from the users table using auth_id
-        const { data, error } = await supabase
-          .from('users')
-          .select('id, display_name, email')
-          .eq('auth_id', user.id)
-          .single();
+        // Use the helper function to get user profile
+        const userProfile = await getUserByAuthId(user.id);
 
-        if (error) {
-          console.error('Error fetching user profile:', error);
-          // If we can't find the user in our database, fall back to auth metadata
-          const name = user.user_metadata?.full_name || user.email?.split('@')[0] || 'User';
-          setDisplayName(name);
-          return;
-        }
-
-        if (data) {
-          console.log('User profile found:', data);
-          setDisplayName(data.display_name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'User');
+        if (userProfile) {
+          console.log('User profile found:', userProfile);
+          setDisplayName(userProfile.display_name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'User');
         } else {
           console.log('No user profile found, using fallback name');
           setDisplayName(user.user_metadata?.full_name || user.email?.split('@')[0] || 'User');

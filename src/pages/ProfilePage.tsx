@@ -1,142 +1,106 @@
+
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import MainLayout from '@/components/Layout/MainLayout';
-import { 
-  Card, 
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle
-} from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { 
-  UserIcon, 
-  BellIcon, 
-  CalendarIcon, 
-  LogOutIcon,
-  SaveIcon,
-  CheckIcon,
-  BrainIcon
-} from 'lucide-react';
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
-} from '@/components/ui/select';
-import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/contexts/AuthContext';
+import { CalendarPlus, CalendarX, Check, LogOut, MailIcon, UserIcon } from 'lucide-react';
+import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { useUserProfile } from '@/hooks/use-database';
 
 const ProfilePage = () => {
   const { user, signOut } = useAuth();
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [timezone, setTimezone] = useState('America/New_York');
-  const [pushNotifications, setPushNotifications] = useState(true);
-  const [emailNotifications, setEmailNotifications] = useState(true);
-  const [isConnected, setIsConnected] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [userId, setUserId] = useState<string | null>(null);
-  const { toast } = useToast();
-  const navigate = useNavigate();
+  const { profile, loading } = useUserProfile();
   
+  const [formState, setFormState] = useState({
+    id: '',
+    displayName: '',
+    email: '',
+    timezone: 'America/New_York',
+    notificationPreferences: 'both',
+    hasCalendar: false
+  });
+
+  const [isUpdating, setIsUpdating] = useState(false);
+
   useEffect(() => {
-    if (!user) {
-      navigate('/login');
-      return;
+    if (profile) {
+      setFormState({
+        id: profile.id,
+        displayName: profile.display_name || '',
+        email: profile.email || '',
+        timezone: profile.timezone || 'America/New_York',
+        notificationPreferences: profile.notification_preferences || 'both',
+        hasCalendar: !!profile.calendar_token
+      });
     }
+  }, [profile]);
 
-    const fetchUserProfile = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('users')
-          .select('*')
-          .eq('auth_id', user.id)
-          .single();
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormState(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
 
-        if (error) {
-          console.error('Error fetching user profile:', error);
-          return;
-        }
+  const handleSelectChange = (name: string, value: string) => {
+    setFormState(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
 
-        if (data) {
-          setUserId(data.id);
-          setName(data.display_name || '');
-          setEmail(data.email || user.email || '');
-          setTimezone(data.timezone || 'America/New_York');
-          
-          // Parse notification preferences
-          const notifPrefs = data.notification_preferences || 'both';
-          setPushNotifications(notifPrefs.includes('push') || notifPrefs === 'both');
-          setEmailNotifications(notifPrefs.includes('email') || notifPrefs === 'both');
-          
-          // Check if calendar is connected
-          setIsConnected(!!data.calendar_token);
-        }
-      } catch (error) {
-        console.error('Error in fetchUserProfile:', error);
-      }
-    };
-
-    fetchUserProfile();
-  }, [user, navigate]);
-
-  const handleSaveProfile = async () => {
-    if (!userId) return;
-    
-    setIsSaving(true);
-    
-    // Determine notification preferences
-    let notificationPreferences = 'none';
-    if (pushNotifications && emailNotifications) notificationPreferences = 'both';
-    else if (pushNotifications) notificationPreferences = 'push';
-    else if (emailNotifications) notificationPreferences = 'email';
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsUpdating(true);
     
     try {
       const { error } = await supabase
         .from('users')
         .update({
-          display_name: name,
-          email: email,
-          timezone: timezone,
-          notification_preferences: notificationPreferences,
+          display_name: formState.displayName,
+          email: formState.email,
+          timezone: formState.timezone,
+          notification_preferences: formState.notificationPreferences,
           updated_at: new Date().toISOString()
         })
-        .eq('id', userId);
-        
+        .eq('id', formState.id);
+      
       if (error) throw error;
       
       toast({
-        title: "Profile Updated",
-        description: "Your profile has been updated successfully.",
+        title: "Profile updated",
+        description: "Your profile has been updated successfully."
       });
     } catch (error: any) {
+      console.error('Error updating profile:', error);
       toast({
-        title: "Update Failed",
-        description: error.message || "Could not update your profile. Please try again.",
-        variant: "destructive",
+        title: "Update failed",
+        description: error.message || "There was an error updating your profile.",
+        variant: "destructive"
       });
     } finally {
-      setIsSaving(false);
+      setIsUpdating(false);
     }
   };
-  
-  const handleConnectCalendar = async () => {
-    // In a real implementation, this would connect to Google Calendar API
-    // For now, we'll just simulate connecting by saving a token in the database
-    if (!userId) return;
-    
+
+  const connectCalendar = async () => {
+    setIsUpdating(true);
     try {
-      const mockToken = { 
-        access_token: "mock_access_token", 
-        refresh_token: "mock_refresh_token",
-        expiry_date: new Date(Date.now() + 3600000).toISOString()
+      // This is a mock implementation
+      // In a real app, this would call an OAuth endpoint
+      
+      const mockToken = {
+        access_token: "mock-google-calendar-access-token",
+        refresh_token: "mock-google-calendar-refresh-token",
+        expiry_date: new Date(Date.now() + 3600000).toISOString() // 1 hour from now
       };
       
       const { error } = await supabase
@@ -145,27 +109,33 @@ const ProfilePage = () => {
           calendar_token: mockToken,
           updated_at: new Date().toISOString()
         })
-        .eq('id', userId);
-        
+        .eq('id', formState.id);
+      
       if (error) throw error;
       
-      setIsConnected(true);
+      setFormState(prev => ({
+        ...prev,
+        hasCalendar: true
+      }));
+      
       toast({
-        title: "Calendar Connected",
-        description: "Your Google Calendar has been connected successfully.",
+        title: "Calendar connected",
+        description: "Your calendar has been connected successfully."
       });
     } catch (error: any) {
+      console.error('Error connecting calendar:', error);
       toast({
-        title: "Connection Failed",
-        description: error.message || "Could not connect your calendar. Please try again.",
-        variant: "destructive",
+        title: "Connection failed",
+        description: error.message || "Failed to connect calendar.",
+        variant: "destructive"
       });
+    } finally {
+      setIsUpdating(false);
     }
   };
-  
-  const handleDisconnectCalendar = async () => {
-    if (!userId) return;
-    
+
+  const disconnectCalendar = async () => {
+    setIsUpdating(true);
     try {
       const { error } = await supabase
         .from('users')
@@ -173,317 +143,215 @@ const ProfilePage = () => {
           calendar_token: null,
           updated_at: new Date().toISOString()
         })
-        .eq('id', userId);
-        
+        .eq('id', formState.id);
+      
       if (error) throw error;
       
-      setIsConnected(false);
+      setFormState(prev => ({
+        ...prev,
+        hasCalendar: false
+      }));
+      
       toast({
-        title: "Calendar Disconnected",
-        description: "Your Google Calendar has been disconnected.",
+        title: "Calendar disconnected",
+        description: "Your calendar has been disconnected."
       });
     } catch (error: any) {
+      console.error('Error disconnecting calendar:', error);
       toast({
-        title: "Disconnection Failed",
-        description: error.message || "Could not disconnect your calendar. Please try again.",
-        variant: "destructive",
+        title: "Disconnection failed",
+        description: error.message || "Failed to disconnect calendar.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      toast({
+        title: "Signed out",
+        description: "You have been signed out successfully."
+      });
+    } catch (error: any) {
+      console.error('Error signing out:', error);
+      toast({
+        title: "Sign out failed",
+        description: error.message || "There was an error signing you out.",
+        variant: "destructive"
       });
     }
   };
-  
-  const handleLogout = () => {
-    signOut();
-  };
+
+  if (loading) {
+    return (
+      <MainLayout>
+        <div className="flex justify-center items-center h-64">
+          <p className="text-reflect-muted">Loading your profile...</p>
+        </div>
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout>
-      <div className="mb-6">
-        <h1 className="font-heading text-3xl font-bold">Profile Settings</h1>
-        <p className="text-reflect-muted">
-          Manage your account preferences
-        </p>
-      </div>
-      
-      <Tabs defaultValue="profile" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 mb-6">
-          <TabsTrigger value="profile" className="flex items-center gap-2">
-            <UserIcon className="w-4 h-4" />
-            Profile
-          </TabsTrigger>
-          <TabsTrigger value="notifications" className="flex items-center gap-2">
-            <BellIcon className="w-4 h-4" />
-            Notifications
-          </TabsTrigger>
-          <TabsTrigger value="integrations" className="flex items-center gap-2">
-            <CalendarIcon className="w-4 h-4" />
-            Integrations
-          </TabsTrigger>
-        </TabsList>
+      <div className="max-w-3xl mx-auto">
+        <h1 className="font-heading text-3xl font-bold mb-6">Profile Settings</h1>
         
-        <TabsContent value="profile">
+        <div className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Profile Information</CardTitle>
+              <CardTitle>Personal Information</CardTitle>
               <CardDescription>
                 Update your personal details and preferences
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Full Name</Label>
-                  <Input 
-                    id="name" 
-                    className="reflect-input"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email Address</Label>
-                  <Input 
-                    id="email" 
-                    type="email"
-                    className="reflect-input"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    disabled={!!user?.email}
-                  />
-                  {user?.email && (
-                    <p className="text-xs text-reflect-muted mt-1">Email is managed by your authentication provider</p>
-                  )}
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="timezone">Timezone</Label>
-                  <Select value={timezone} onValueChange={setTimezone}>
-                    <SelectTrigger className="reflect-input">
-                      <SelectValue placeholder="Select timezone" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="America/New_York">Eastern Time (ET)</SelectItem>
-                      <SelectItem value="America/Chicago">Central Time (CT)</SelectItem>
-                      <SelectItem value="America/Denver">Mountain Time (MT)</SelectItem>
-                      <SelectItem value="America/Los_Angeles">Pacific Time (PT)</SelectItem>
-                      <SelectItem value="Europe/London">London (GMT)</SelectItem>
-                      <SelectItem value="Europe/Paris">Paris (CET)</SelectItem>
-                      <SelectItem value="Asia/Tokyo">Tokyo (JST)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              
-              <div className="flex justify-between items-center pt-4 border-t">
-                <Button variant="outline" onClick={handleLogout} className="flex items-center gap-2">
-                  <LogOutIcon className="w-4 h-4" />
-                  Sign Out
-                </Button>
-                
-                <Button 
-                  className="reflect-button flex items-center gap-2"
-                  onClick={handleSaveProfile}
-                  disabled={isSaving}
-                >
-                  {isSaving ? (
-                    <>
-                      <SaveIcon className="w-4 h-4 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <SaveIcon className="w-4 h-4" />
-                      Save Changes
-                    </>
-                  )}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="notifications">
-          <Card>
-            <CardHeader>
-              <CardTitle>Notification Preferences</CardTitle>
-              <CardDescription>
-                Configure how and when you receive notifications
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label className="text-base">Push Notifications</Label>
-                    <p className="text-sm text-reflect-muted">
-                      Receive notifications in your browser
-                    </p>
-                  </div>
-                  <Switch
-                    checked={pushNotifications}
-                    onCheckedChange={setPushNotifications}
-                  />
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label className="text-base">Email Notifications</Label>
-                    <p className="text-sm text-reflect-muted">
-                      Receive daily journal reminders via email
-                    </p>
-                  </div>
-                  <Switch
-                    checked={emailNotifications}
-                    onCheckedChange={setEmailNotifications}
-                  />
-                </div>
-                
-                <div className="pt-6 border-t">
-                  <h3 className="text-lg font-medium mb-4">Notification Schedule</h3>
-                  
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="reminder-time">Daily Reminder Time</Label>
-                      <Select defaultValue="8pm">
-                        <SelectTrigger className="reflect-input">
-                          <SelectValue placeholder="Select time" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="6am">6:00 AM</SelectItem>
-                          <SelectItem value="7am">7:00 AM</SelectItem>
-                          <SelectItem value="8am">8:00 AM</SelectItem>
-                          <SelectItem value="9am">9:00 AM</SelectItem>
-                          <SelectItem value="6pm">6:00 PM</SelectItem>
-                          <SelectItem value="7pm">7:00 PM</SelectItem>
-                          <SelectItem value="8pm">8:00 PM</SelectItem>
-                          <SelectItem value="9pm">9:00 PM</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    
-                    <div className="flex items-center justify-between">
-                      <div className="space-y-0.5">
-                        <Label className="text-base">Event-based Reminders</Label>
-                        <p className="text-sm text-reflect-muted">
-                          Get prompts before calendar events
-                        </p>
+            <CardContent>
+              <form onSubmit={handleSubmit} className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="displayName">Display Name</Label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                        <UserIcon className="w-4 h-4 text-reflect-muted" />
                       </div>
-                      <Switch defaultChecked />
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="flex justify-end items-center pt-4 border-t">
-                <Button 
-                  className="reflect-button flex items-center gap-2"
-                  onClick={handleSaveProfile}
-                  disabled={isSaving}
-                >
-                  {isSaving ? (
-                    <>
-                      <SaveIcon className="w-4 h-4 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <SaveIcon className="w-4 h-4" />
-                      Save Changes
-                    </>
-                  )}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="integrations">
-          <Card>
-            <CardHeader>
-              <CardTitle>Connected Services</CardTitle>
-              <CardDescription>
-                Link your accounts to enhance your experience
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="border rounded-lg p-4">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start gap-3">
-                    <div className="bg-white p-2 rounded shadow">
-                      <CalendarIcon className="w-8 h-8 text-blue-500" />
-                    </div>
-                    <div>
-                      <h3 className="font-medium text-lg">Google Calendar</h3>
-                      <p className="text-sm text-reflect-muted">
-                        Connect your calendar to get personalized journal prompts based on your upcoming events.
-                      </p>
+                      <Input
+                        id="displayName"
+                        name="displayName"
+                        value={formState.displayName}
+                        onChange={handleInputChange}
+                        className="pl-10"
+                        placeholder="Your name"
+                      />
                     </div>
                   </div>
                   
-                  {isConnected ? (
-                    <div className="flex items-center gap-2">
-                      <span className="flex items-center text-green-600 text-sm gap-1">
-                        <CheckIcon className="w-4 h-4" />
-                        Connected
-                      </span>
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={handleDisconnectCalendar}
-                      >
-                        Disconnect
-                      </Button>
-                    </div>
-                  ) : (
-                    <Button 
-                      className="reflect-button-secondary"
-                      onClick={handleConnectCalendar}
-                    >
-                      Connect
-                    </Button>
-                  )}
-                </div>
-                
-                {isConnected && (
-                  <div className="mt-4 pt-4 border-t">
-                    <h4 className="font-medium mb-2 text-sm">Connected Account</h4>
-                    <p className="text-reflect-muted text-sm">{email}</p>
-                    
-                    <div className="mt-3">
-                      <Label htmlFor="sync-frequency" className="text-sm">Sync Frequency</Label>
-                      <Select defaultValue="daily">
-                        <SelectTrigger className="reflect-input mt-1">
-                          <SelectValue placeholder="Select frequency" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="realtime">Real-time</SelectItem>
-                          <SelectItem value="hourly">Hourly</SelectItem>
-                          <SelectItem value="daily">Daily</SelectItem>
-                        </SelectContent>
-                      </Select>
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email</Label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                        <MailIcon className="w-4 h-4 text-reflect-muted" />
+                      </div>
+                      <Input
+                        id="email"
+                        name="email"
+                        value={formState.email}
+                        onChange={handleInputChange}
+                        className="pl-10"
+                        placeholder="Your email"
+                      />
                     </div>
                   </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="timezone">Timezone</Label>
+                    <Select 
+                      value={formState.timezone}
+                      onValueChange={(value) => handleSelectChange('timezone', value)}
+                    >
+                      <SelectTrigger id="timezone">
+                        <SelectValue placeholder="Select timezone" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="America/New_York">Eastern Time (ET)</SelectItem>
+                        <SelectItem value="America/Chicago">Central Time (CT)</SelectItem>
+                        <SelectItem value="America/Denver">Mountain Time (MT)</SelectItem>
+                        <SelectItem value="America/Los_Angeles">Pacific Time (PT)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label>Notification Preferences</Label>
+                    <RadioGroup 
+                      value={formState.notificationPreferences}
+                      onValueChange={(value) => handleSelectChange('notificationPreferences', value)}
+                      className="flex flex-col space-y-1"
+                    >
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="email" id="notif-email" />
+                        <Label htmlFor="notif-email" className="font-normal">Email only</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="push" id="notif-push" />
+                        <Label htmlFor="notif-push" className="font-normal">Push notifications only</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="both" id="notif-both" />
+                        <Label htmlFor="notif-both" className="font-normal">Both email and push</Label>
+                      </div>
+                    </RadioGroup>
+                  </div>
+                </div>
+                
+                <Button type="submit" className="reflect-button" disabled={isUpdating}>
+                  {isUpdating ? 'Saving...' : 'Save Changes'}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader>
+              <CardTitle>Calendar Integration</CardTitle>
+              <CardDescription>
+                Connect your calendar to enable scheduling features
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <h4 className="text-base font-medium">Google Calendar</h4>
+                  <p className="text-sm text-reflect-muted">
+                    {formState.hasCalendar 
+                      ? 'Your calendar is connected and syncing' 
+                      : 'Connect your Google Calendar for event syncing'
+                    }
+                  </p>
+                </div>
+                
+                {formState.hasCalendar ? (
+                  <Button 
+                    variant="outline" 
+                    onClick={disconnectCalendar}
+                    disabled={isUpdating}
+                  >
+                    <CalendarX className="w-4 h-4 mr-2" />
+                    Disconnect
+                  </Button>
+                ) : (
+                  <Button 
+                    variant="outline" 
+                    onClick={connectCalendar}
+                    disabled={isUpdating}
+                    className="text-reflect-primary border-reflect-primary/30 hover:bg-reflect-primary/10"
+                  >
+                    <CalendarPlus className="w-4 h-4 mr-2" />
+                    Connect
+                  </Button>
                 )}
               </div>
-              
-              {/* Future integration placeholders */}
-              <div className="border border-dashed rounded-lg p-4 bg-gray-50">
-                <div className="flex items-start gap-3">
-                  <div className="bg-white p-2 rounded shadow">
-                    <BrainIcon className="w-8 h-8 text-purple-500" />
-                  </div>
-                  <div>
-                    <h3 className="font-medium">More Integrations Coming Soon</h3>
-                    <p className="text-sm text-reflect-muted">
-                      We're working on integrating with more services to enhance your journaling experience.
-                    </p>
-                  </div>
-                </div>
-              </div>
             </CardContent>
           </Card>
-        </TabsContent>
-      </Tabs>
+          
+          <Card>
+            <CardHeader>
+              <CardTitle>Account Actions</CardTitle>
+              <CardDescription>
+                Manage your account settings
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button variant="outline" className="border-destructive/30 hover:bg-destructive/10 text-destructive hover:text-destructive" onClick={handleSignOut}>
+                <LogOut className="w-4 h-4 mr-2" />
+                Sign Out
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </MainLayout>
   );
 };

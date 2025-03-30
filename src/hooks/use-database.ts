@@ -1,9 +1,10 @@
+
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { UserProfile, JournalEntry, CalendarEvent, Prompt } from '@/types/models';
 
-// Generic hook for fetching user data safely
+// Generic hook for fetching user profile safely
 export function useUserProfile() {
   const { user } = useAuth();
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -52,12 +53,15 @@ export function useJournalEntries(limit: number = 5) {
   useEffect(() => {
     async function fetchEntries() {
       if (!user?.id) {
+        console.log('No user ID found, aborting fetch');
         setLoading(false);
         return;
       }
 
       try {
+        console.log('Fetching journal entries for user:', user.id);
         setLoading(true);
+        
         // First get the user's profile to get their internal ID
         const { data: userData, error: userError } = await supabase
           .from('users')
@@ -65,11 +69,17 @@ export function useJournalEntries(limit: number = 5) {
           .eq('auth_id', user.id)
           .single();
 
-        if (userError) throw userError;
+        if (userError) {
+          console.error('Error fetching user profile:', userError);
+          throw userError;
+        }
         
         if (!userData) {
+          console.error('User profile not found');
           throw new Error('User profile not found');
         }
+        
+        console.log('Found user profile with ID:', userData.id);
         
         // Get the total count of entries for this user
         const { count, error: countError } = await supabase
@@ -77,8 +87,13 @@ export function useJournalEntries(limit: number = 5) {
           .select('*', { count: 'exact', head: true })
           .eq('user_id', userData.id);
           
-        if (countError) throw countError;
+        if (countError) {
+          console.error('Error counting journal entries:', countError);
+          throw countError;
+        }
+        
         setTotalCount(count || 0);
+        console.log('Total journal entries count:', count);
         
         // Then get the journal entries
         const { data, error } = await supabase
@@ -88,10 +103,15 @@ export function useJournalEntries(limit: number = 5) {
           .order('entry_date', { ascending: false })
           .limit(limit);
 
-        if (error) throw error;
+        if (error) {
+          console.error('Error fetching journal entries:', error);
+          throw error;
+        }
+        
+        console.log('Successfully fetched journal entries:', data?.length || 0);
         setEntries(data as JournalEntry[]);
       } catch (e) {
-        console.error('Error fetching journal entries:', e);
+        console.error('Error in useJournalEntries hook:', e);
         setError(e as Error);
         setEntries([]);
       } finally {
@@ -193,11 +213,13 @@ export function useJournalEntry(entryId: string | undefined) {
   useEffect(() => {
     async function fetchEntry() {
       if (!user?.id || !entryId) {
+        console.log('No user ID or entry ID found, aborting fetch');
         setLoading(false);
         return;
       }
 
       try {
+        console.log(`Fetching journal entry ${entryId} for user ${user.id}`);
         setLoading(true);
         
         // First get the user's profile to get their internal ID
@@ -207,11 +229,17 @@ export function useJournalEntry(entryId: string | undefined) {
           .eq('auth_id', user.id)
           .single();
 
-        if (userError) throw userError;
+        if (userError) {
+          console.error('Error fetching user profile:', userError);
+          throw userError;
+        }
         
         if (!userData) {
+          console.error('User profile not found');
           throw new Error('User profile not found');
         }
+
+        console.log('Found user profile with ID:', userData.id);
 
         // Then get the specific journal entry
         const { data, error } = await supabase
@@ -221,11 +249,15 @@ export function useJournalEntry(entryId: string | undefined) {
           .eq('id', entryId)
           .single();
 
-        if (error) throw error;
+        if (error) {
+          console.error(`Error fetching journal entry ${entryId}:`, error);
+          throw error;
+        }
         
+        console.log('Successfully fetched journal entry:', data?.id);
         setEntry(data as JournalEntry);
       } catch (e) {
-        console.error('Error fetching journal entry:', e);
+        console.error('Error in useJournalEntry hook:', e);
         setError(e as Error);
       } finally {
         setLoading(false);

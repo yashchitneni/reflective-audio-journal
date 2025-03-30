@@ -1,12 +1,10 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import MainLayout from '@/components/Layout/MainLayout';
 import { 
   Card, 
   CardContent,
-  CardDescription,
   CardHeader,
-  CardTitle
 } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
@@ -18,7 +16,8 @@ import {
   SearchIcon,
   ArrowDownIcon,
   ArrowUpIcon,
-  FilterIcon
+  FilterIcon,
+  Loader2Icon
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { 
@@ -29,74 +28,141 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-
-// Mock data for journal entries
-const mockEntries = [
-  {
-    id: '1',
-    date: new Date(2023, 9, 20), // October 20, 2023
-    type: 'text',
-    title: 'Productive Day',
-    preview: 'Today was a productive day. I finished the project ahead of schedule and had time to focus on some personal tasks as well...'
-  },
-  {
-    id: '2',
-    date: new Date(2023, 9, 19), // October 19, 2023
-    type: 'voice',
-    title: 'Feeling Overwhelmed',
-    preview: 'I\'m feeling a bit overwhelmed with the upcoming deadline, but I\'m confident that I\'ll be able to manage my time effectively...'
-  },
-  {
-    id: '3',
-    date: new Date(2023, 9, 18), // October 18, 2023
-    type: 'photo',
-    title: 'Mountain Hike',
-    preview: 'Went for a hike in the mountains. The view was breathtaking and really helped clear my mind. Nature always seems to have that effect on me...'
-  },
-  {
-    id: '4',
-    date: new Date(2023, 9, 17), // October 17, 2023
-    type: 'text',
-    title: 'Meeting Reflections',
-    preview: 'Had an interesting meeting with the team today. We discussed some new ideas for the project and I\'m excited to see how they\'ll develop...'
-  },
-  {
-    id: '5',
-    date: new Date(2023, 9, 16), // October 16, 2023
-    type: 'voice',
-    title: 'Evening Thoughts',
-    preview: 'Just got back from dinner with friends. It was great catching up after so long. We reminisced about old times and made plans for a trip next month...'
-  },
-];
+import { useJournalEntries } from '@/hooks/use-database';
+import { format } from 'date-fns';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const JournalPage = () => {
-  const [searchTerm, setSearchTerm] = React.useState('');
-  const [currentTab, setCurrentTab] = React.useState('all');
-  const [sortDirection, setSortDirection] = React.useState<'asc' | 'desc'>('desc');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [currentTab, setCurrentTab] = useState('all');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  
+  // Fetch real entries from Supabase with error handling
+  const { entries, loading, error } = useJournalEntries(100); // Fetch more entries for the journal page
   
   // Filter entries based on search term and tab
-  const filteredEntries = mockEntries.filter(entry => {
+  const filteredEntries = entries.filter(entry => {
     // Filter by search term
     const matchesSearch = 
-      entry.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      entry.preview.toLowerCase().includes(searchTerm.toLowerCase());
+      (entry.text_content && entry.text_content.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (entry.voice_transcript && entry.voice_transcript.toLowerCase().includes(searchTerm.toLowerCase()));
     
     // Filter by type
     if (currentTab === 'all') return matchesSearch;
-    return matchesSearch && entry.type === currentTab;
+    if (currentTab === 'text') return matchesSearch && entry.text_content;
+    if (currentTab === 'voice') return matchesSearch && entry.voice_transcript;
+    if (currentTab === 'photo') return matchesSearch && entry.photo_urls && (entry.photo_urls as string[]).length > 0;
+    
+    return matchesSearch;
   });
   
   // Sort entries by date
   const sortedEntries = [...filteredEntries].sort((a, b) => {
+    const dateA = new Date(a.entry_date || a.created_at);
+    const dateB = new Date(b.entry_date || b.created_at);
+    
     if (sortDirection === 'desc') {
-      return b.date.getTime() - a.date.getTime();
+      return dateB.getTime() - dateA.getTime();
     } else {
-      return a.date.getTime() - b.date.getTime();
+      return dateA.getTime() - dateB.getTime();
     }
   });
   
   const toggleSortDirection = () => {
     setSortDirection(prevDirection => prevDirection === 'desc' ? 'asc' : 'desc');
+  };
+
+  // Helper function to get entry type icons
+  const getEntryTypeIcon = (entry: any) => {
+    if (entry.text_content) {
+      return <FileTextIcon className="w-5 h-5 text-blue-500" />;
+    } else if (entry.voice_transcript) {
+      return <MicIcon className="w-5 h-5 text-red-500" />;
+    } else if (entry.photo_urls && (entry.photo_urls as string[]).length > 0) {
+      return <ImageIcon className="w-5 h-5 text-green-500" />;
+    }
+    return <FileTextIcon className="w-5 h-5 text-gray-500" />;
+  };
+
+  // Helper function to get entry preview text
+  const getEntryPreview = (entry: any) => {
+    if (entry.text_content) {
+      return entry.text_content.slice(0, 120) + (entry.text_content.length > 120 ? '...' : '');
+    } else if (entry.voice_transcript) {
+      return entry.voice_transcript.slice(0, 120) + (entry.voice_transcript.length > 120 ? '...' : '');
+    } else {
+      return 'No text content available';
+    }
+  };
+
+  // Render loading skeletons
+  const renderSkeletons = () => {
+    return Array(3).fill(0).map((_, index) => (
+      <div key={index} className="py-4 px-3 -mx-3 rounded-md">
+        <div className="flex items-start gap-3">
+          <Skeleton className="w-5 h-5 mt-1 rounded-full" />
+          <div className="w-full">
+            <Skeleton className="h-4 w-32 mb-2" />
+            <Skeleton className="h-5 w-48 mb-2" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-2/3 mt-1" />
+          </div>
+        </div>
+      </div>
+    ));
+  };
+
+  // Render the entry list
+  const renderEntries = () => {
+    if (loading) {
+      return renderSkeletons();
+    }
+    
+    if (error) {
+      return (
+        <div className="py-8 text-center">
+          <p className="text-reflect-muted">Error loading entries.</p>
+          <p className="text-sm text-reflect-muted mt-1">{error.message}</p>
+        </div>
+      );
+    }
+    
+    if (sortedEntries.length === 0) {
+      return (
+        <div className="py-8 text-center">
+          <p className="text-reflect-muted">No entries found.</p>
+          <p className="text-sm text-reflect-muted mt-1">
+            {searchTerm ? 'Try adjusting your search or filters.' : 'Create your first journal entry.'}
+          </p>
+          <Link to="/new-entry">
+            <Button className="mt-4 reflect-button">
+              Create New Entry
+            </Button>
+          </Link>
+        </div>
+      );
+    }
+    
+    return sortedEntries.map(entry => (
+      <Link to={`/journal/${entry.id}`} key={entry.id}>
+        <div className="py-4 hover:bg-gray-50 px-3 -mx-3 rounded-md transition-colors">
+          <div className="flex items-start gap-3">
+            <div className="mt-1">
+              {getEntryTypeIcon(entry)}
+            </div>
+            <div>
+              <p className="text-sm text-reflect-muted">
+                {format(new Date(entry.entry_date || entry.created_at), 'EEEE, MMMM d, yyyy')}
+              </p>
+              <h3 className="font-medium text-lg">
+                {format(new Date(entry.entry_date || entry.created_at), 'h:mm a')}
+              </h3>
+              <p className="line-clamp-2 text-reflect-muted mt-1">{getEntryPreview(entry)}</p>
+            </div>
+          </div>
+        </div>
+      </Link>
+    ));
   };
 
   return (
@@ -191,145 +257,31 @@ const JournalPage = () => {
             
             <TabsContent value="all" className="mt-0">
               <div className="divide-y">
-                {sortedEntries.length > 0 ? (
-                  sortedEntries.map(entry => (
-                    <Link to={`/journal/${entry.id}`} key={entry.id}>
-                      <div className="py-4 hover:bg-gray-50 px-3 -mx-3 rounded-md transition-colors">
-                        <div className="flex items-start gap-3">
-                          <div className="mt-1">
-                            {entry.type === 'text' && (
-                              <FileTextIcon className="w-5 h-5 text-blue-500" />
-                            )}
-                            {entry.type === 'voice' && (
-                              <MicIcon className="w-5 h-5 text-red-500" />
-                            )}
-                            {entry.type === 'photo' && (
-                              <ImageIcon className="w-5 h-5 text-green-500" />
-                            )}
-                          </div>
-                          <div>
-                            <p className="text-sm text-reflect-muted">
-                              {entry.date.toLocaleDateString('en-US', { 
-                                weekday: 'long', 
-                                month: 'short', 
-                                day: 'numeric',
-                                year: 'numeric'
-                              })}
-                            </p>
-                            <h3 className="font-medium text-lg">{entry.title}</h3>
-                            <p className="line-clamp-2 text-reflect-muted mt-1">{entry.preview}</p>
-                          </div>
-                        </div>
-                      </div>
-                    </Link>
-                  ))
-                ) : (
-                  <div className="py-8 text-center">
-                    <p className="text-reflect-muted">No entries found.</p>
-                    <p className="text-sm text-reflect-muted mt-1">
-                      Try adjusting your search or filters.
-                    </p>
+                {loading ? (
+                  <div className="py-6 flex justify-center">
+                    <Loader2Icon className="h-6 w-6 animate-spin text-reflect-muted" />
                   </div>
+                ) : (
+                  renderEntries()
                 )}
               </div>
             </TabsContent>
             
             <TabsContent value="text" className="mt-0">
-              {/* Text entries content - similar structure to "all" but filtered */}
               <div className="divide-y">
-                {sortedEntries.length > 0 ? (
-                  sortedEntries.map(entry => (
-                    <Link to={`/journal/${entry.id}`} key={entry.id}>
-                      <div className="py-4 hover:bg-gray-50 px-3 -mx-3 rounded-md transition-colors">
-                        <div className="flex items-start gap-3">
-                          <FileTextIcon className="w-5 h-5 text-blue-500 mt-1" />
-                          <div>
-                            <p className="text-sm text-reflect-muted">
-                              {entry.date.toLocaleDateString('en-US', { 
-                                weekday: 'long', 
-                                month: 'short', 
-                                day: 'numeric',
-                                year: 'numeric'
-                              })}
-                            </p>
-                            <h3 className="font-medium text-lg">{entry.title}</h3>
-                            <p className="line-clamp-2 text-reflect-muted mt-1">{entry.preview}</p>
-                          </div>
-                        </div>
-                      </div>
-                    </Link>
-                  ))
-                ) : (
-                  <div className="py-8 text-center">
-                    <p className="text-reflect-muted">No text entries found.</p>
-                  </div>
-                )}
+                {renderEntries()}
               </div>
             </TabsContent>
             
             <TabsContent value="voice" className="mt-0">
-              {/* Voice entries content - similar structure */}
               <div className="divide-y">
-                {sortedEntries.length > 0 ? (
-                  sortedEntries.map(entry => (
-                    <Link to={`/journal/${entry.id}`} key={entry.id}>
-                      <div className="py-4 hover:bg-gray-50 px-3 -mx-3 rounded-md transition-colors">
-                        <div className="flex items-start gap-3">
-                          <MicIcon className="w-5 h-5 text-red-500 mt-1" />
-                          <div>
-                            <p className="text-sm text-reflect-muted">
-                              {entry.date.toLocaleDateString('en-US', { 
-                                weekday: 'long', 
-                                month: 'short', 
-                                day: 'numeric',
-                                year: 'numeric'
-                              })}
-                            </p>
-                            <h3 className="font-medium text-lg">{entry.title}</h3>
-                            <p className="line-clamp-2 text-reflect-muted mt-1">{entry.preview}</p>
-                          </div>
-                        </div>
-                      </div>
-                    </Link>
-                  ))
-                ) : (
-                  <div className="py-8 text-center">
-                    <p className="text-reflect-muted">No voice entries found.</p>
-                  </div>
-                )}
+                {renderEntries()}
               </div>
             </TabsContent>
             
             <TabsContent value="photo" className="mt-0">
-              {/* Photo entries content - similar structure */}
               <div className="divide-y">
-                {sortedEntries.length > 0 ? (
-                  sortedEntries.map(entry => (
-                    <Link to={`/journal/${entry.id}`} key={entry.id}>
-                      <div className="py-4 hover:bg-gray-50 px-3 -mx-3 rounded-md transition-colors">
-                        <div className="flex items-start gap-3">
-                          <ImageIcon className="w-5 h-5 text-green-500 mt-1" />
-                          <div>
-                            <p className="text-sm text-reflect-muted">
-                              {entry.date.toLocaleDateString('en-US', { 
-                                weekday: 'long', 
-                                month: 'short', 
-                                day: 'numeric',
-                                year: 'numeric'
-                              })}
-                            </p>
-                            <h3 className="font-medium text-lg">{entry.title}</h3>
-                            <p className="line-clamp-2 text-reflect-muted mt-1">{entry.preview}</p>
-                          </div>
-                        </div>
-                      </div>
-                    </Link>
-                  ))
-                ) : (
-                  <div className="py-8 text-center">
-                    <p className="text-reflect-muted">No photo entries found.</p>
-                  </div>
-                )}
+                {renderEntries()}
               </div>
             </TabsContent>
           </Tabs>

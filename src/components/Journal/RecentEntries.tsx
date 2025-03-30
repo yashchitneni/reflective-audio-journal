@@ -3,9 +3,10 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { MicIcon, ImageIcon, FileTextIcon, ArrowRightIcon } from 'lucide-react';
+import { MicIcon, ImageIcon, FileTextIcon, ArrowRightIcon, Loader2Icon } from 'lucide-react';
 import { format } from 'date-fns';
 import { useJournalEntries } from '@/hooks/use-database';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const RecentEntries = () => {
   const { entries, loading, error } = useJournalEntries(3);
@@ -25,9 +26,22 @@ const RecentEntries = () => {
       <div className="flex gap-1">
         {entry.text_content && <FileTextIcon className="w-3 h-3 text-gray-500" />}
         {entry.voice_transcript && <MicIcon className="w-3 h-3 text-gray-500" />}
-        {entry.photo_urls && entry.photo_urls.length > 0 && <ImageIcon className="w-3 h-3 text-gray-500" />}
+        {entry.photo_urls && (entry.photo_urls as string[]).length > 0 && <ImageIcon className="w-3 h-3 text-gray-500" />}
       </div>
     );
+  };
+
+  const renderSkeletons = () => {
+    return Array(3).fill(0).map((_, i) => (
+      <div key={i} className="p-4 rounded-md border border-border">
+        <div className="flex justify-between items-start mb-1">
+          <Skeleton className="h-5 w-32" />
+          <Skeleton className="h-3 w-8" />
+        </div>
+        <Skeleton className="h-4 w-full mt-2" />
+        <Skeleton className="h-4 w-3/4 mt-1" />
+      </div>
+    ));
   };
 
   if (error) {
@@ -39,6 +53,7 @@ const RecentEntries = () => {
         <CardContent>
           <div className="py-8 text-center">
             <p className="text-reflect-muted">There was an error loading your entries. Please try again later.</p>
+            <p className="text-xs text-reflect-muted mt-1">{error.message}</p>
           </div>
         </CardContent>
       </Card>
@@ -60,8 +75,8 @@ const RecentEntries = () => {
       </CardHeader>
       <CardContent>
         {loading ? (
-          <div className="py-8 text-center">
-            <p className="text-reflect-muted">Loading your journal entries...</p>
+          <div className="space-y-4">
+            {renderSkeletons()}
           </div>
         ) : entries.length === 0 ? (
           <div className="py-8 text-center">
@@ -80,7 +95,7 @@ const RecentEntries = () => {
                   <div className="flex justify-between items-start mb-1">
                     <div className="flex items-center gap-2">
                       <span className="font-medium">
-                        {format(new Date(entry.entry_date), 'MMM d, yyyy')}
+                        {format(new Date(entry.entry_date || entry.created_at), 'MMM d, yyyy')}
                       </span>
                       {getEntryTypeIcons(entry)}
                     </div>
